@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>헬라어 기말고사 플래시카드</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Sans:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', 'Noto Sans', sans-serif;
+        }
+        .flashcard-container {
+            perspective: 1000px;
+        }
+        .flashcard {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+        .flashcard.is-flipped {
+            transform: rotateY(180deg);
+        }
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .card-front {
+            background-color: white;
+        }
+        .card-back {
+            background-color: #f0f9ff; /* light-blue-50 */
+            transform: rotateY(180deg);
+            overflow-y: auto;
+            /* align-items: flex-start; 이 속성을 JS에서 동적으로 제어합니다. */
+        }
+        .greek-text {
+            font-family: 'Noto Sans', sans-serif;
+            font-size: 1.875rem; /* text-3xl */
+            line-height: 1.6;
+        }
+        .korean-text {
+            font-size: 1.125rem; /* text-lg */
+        }
+        .inflection-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+        .inflection-table th, .inflection-table td {
+            border: 1px solid #9ca3af; /* gray-400 */
+            padding: 0.35rem;
+            text-align: center;
+        }
+        .inflection-table th {
+            background-color: #e0f2fe; /* light-blue-100 */
+        }
+        #home-screen, #study-screen {
+            transition: opacity 0.3s ease-in-out;
+        }
+        .card-back::-webkit-scrollbar {
+            width: 8px;
+        }
+        .card-back::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .card-back::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 4px;
+        }
+        .card-back::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen">
+
+    <div id="app" class="w-full max-w-3xl mx-auto p-4">
+
+        <!-- 홈 화면 -->
+        <div id="home-screen">
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-bold text-slate-800">헬라어 기말고사 준비</h1>
+                <p class="text-slate-600 mt-2">학습할 유형을 선택하세요.</p>
+            </div>
+            <div class="grid grid-cols-1 gap-4">
+                <button onclick="startStudy('vocabulary')" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                    단어 암기 (10-14과)
+                </button>
+                <button onclick="startStudy('inflections')" class="bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                    변화표 암기
+                </button>
+                <button onclick="startStudy('sentences')" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                    문장 분석 (9-14과)
+                </button>
+            </div>
+        </div>
+
+        <!-- 학습 화면 -->
+        <div id="study-screen" class="hidden">
+            <h2 id="study-title" class="text-2xl font-bold text-center text-slate-700 mb-4"></h2>
+            
+            <div class="flashcard-container w-full h-96 md:h-[32rem]">
+                <div id="flashcard" class="flashcard">
+                    <div id="card-front" class="card-face card-front"></div>
+                    <div id="card-back" class="card-face card-back"></div>
+                </div>
+            </div>
+
+            <div id="progress" class="text-center text-slate-500 my-4"></div>
+
+            <div class="flex justify-center items-center space-x-2 mt-4">
+                <button id="prev-btn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition">-</button>
+                <button id="flip-btn" class="bg-yellow-400 hover:bg-yellow-500 text-yellow-800 font-bold py-3 px-8 rounded-lg shadow-md transition">정답 확인</button>
+                <button id="next-btn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition">+</button>
+            </div>
+            
+            <div class="text-center mt-6">
+                <button id="home-btn" class="text-blue-600 hover:text-blue-800 transition">처음으로 돌아가기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 데이터베이스 ---
+        const db = {
+            vocabulary: [
+                { greek: "ἀλλά", korean: "(접) 그러나" }, { greek: "ἀκούω", korean: "(동) 내가 듣다" }, { greek: "ἁμαρτωλός", korean: "(명) 죄인" }, { greek: "ἀποκρίνομαι", korean: "(동) 내가 대답하다 (dep.)" }, { greek: "ἄρχω", korean: "(동) 내가 지배하다 (기본형)" }, { greek: "ἄρχομαι", korean: "(동) 내가 시작하다 (중간태)" }, { greek: "γίνομαι", korean: "(동) 내가 되다 (dep.)" }, { greek: "διέρχομαι", korean: "(동) 내가 거쳐 가다 (dep.)" }, { greek: "εἰσέρχομαι", korean: "(동) 내가 들어가다 (dep.)" }, { greek: "ἐξέρχομαι", korean: "(동) 내가 나가다 (dep.)" }, { greek: "ἔρχομαι", korean: "(동) 내가 가다, 오다 (dep.)" }, { greek: "ὅτι", korean: "(접) 한 바를, 왜냐하면" }, { greek: "οὐ", korean: "(부) 아니 (전접사)" }, { greek: "πορεύομαι", korean: "(동) 내가 가다 (dep.)" }, { greek: "σῴζω", korean: "(동) 내가 구원하다" }, { greek: "ὑπό", korean: "(전) (+소유격) ~로 말미암아, (+목적격) 아래" }, { greek: "αἴρω", korean: "(동) 내가 들어올리다, 치워버리다" }, { greek: "ἀναβαίνω", korean: "(동) 내가 올라가다" }, { greek: "ἀποθνήσκω", korean: "(동) 내가 죽다" }, { greek: "ἀποκτείνω", korean: "(동) 내가 죽이다" }, { greek: "ἀποστέλλω", korean: "(동) 내가 보내다 (사명을 주어)" }, { greek: "ἄρτος", korean: "(명) 떡, 떡 조각" }, { greek: "βαίνω", korean: "(동) 내가 가다" }, { greek: "ἐσθίω", korean: "(동) 내가 먹다" }, { greek: "κατά", korean: "(전) ~에 대하여, 대적하여" }, { greek: "καταβαίνω", korean: "(동) 내가 내려가다" }, { greek: "μέν...δέ", korean: "(부) 한편...또 한편" }, { greek: "οὐκέτι", korean: "(부) 이제는 아니, 더 이상 아니다" }, { greek: "παρά", korean: "(전) ~부터, 곁에, 나란히" }, { greek: "παραλαμβάνω", korean: "(동) 내가 받다, 이으다, 데려가다" }, { greek: "σύν", korean: "(전) 함께" }, { greek: "συνάγω", korean: "(동) 내가 모으다, 모이다" }, { greek: "τότε", korean: "(부) 그 때에" }, { greek: "ἀπέρχομαι", korean: "(동) 내가 가 버리다 (dep.)" }, { greek: "βίβλος", korean: "(명) 책" }, { greek: "δαιμόνιον", korean: "(명) 귀신" }, { greek: "δέχομαι", korean: "(동) 내가 받다, 영접하다 (dep.)" }, { greek: "ἐκπορεύομαι", korean: "(동) 내가 나가다 (dep.)" }, { greek: "ἔργον", korean: "(명) 일, 역사(work)" }, { greek: "ἔτι", korean: "(부) 아직, 여전히" }, { greek: "θάλασσα", korean: "(명) 호수, 바다" }, { greek: "καί", korean: "(접) 그리고, 역시, 까지도" }, { greek: "κατέρχομαι", korean: "(동) 내가 내려가다 (dep.)" }, { greek: "οὐδέ", korean: "(접) 그리고 아니, ~도 아니, ~까지도 아니" }, { greek: "οὔπω", korean: "(부) 아직도 아니" }, { greek: "περί", korean: "(전) (+소유격) ~에 대하여 / (+목적격) 주위에, 둘레에" }, { greek: "πλοῖον", korean: "(명) 배" }, { greek: "συνέρχομαι", korean: "(동) 내가 같이 오다 (dep.)" }, { greek: "ὑπέρ", korean: "(전) (+소유격) 위하여, 대신하여 / (+목적격) 위에" }, { greek: "ἀναβλέπω, ἀναβλέψω", korean: "(동) 내가 쳐다보다, 시력을 회복하다" }, { greek: "βήσομαι", korean: "(동) 내가 갈 것이다 (βαίνω의 미래, dep.)" }, { greek: "γενήσομαι", korean: "(동) 내가 될 것이다 (γίνομαι의 미래, dep.)" }, { greek: "γνώσομαι", korean: "(동) 내가 알 것이다 (γινώσκω의 미래, dep.)" }, { greek: "διδάξω", korean: "(동) 내가 가르칠 것이다 (διδάσκω의 미래)" }, { greek: "διώκω, διώξω", korean: "(동) 내가 뒤쫓다, 박해하다" }, { greek: "δοξάζω, δοξάσω", korean: "(동) 내가 영광돌리다" }, { greek: "ἐλεύσομαι", korean: "(동) 내가 올 것이다 (ἔρχομαι의 미래, dep.)" }, { greek: "ἕξω", korean: "(동) 내가 소유할 것이다 (ἔχω의 미래)" }, { greek: "κηρύσσω, κηρύξω", korean: "(동) 내가 선포하다, 전파하다, 설교하다" }, { greek: "λήμψομαι", korean: "(동) 내가 취할 것이다 (λαμβάνω의 미래, dep.)" }, { greek: "προσεύχομαι, προσεύξομαι", korean: "(동) 내가 기도하다 (dep.)" }, { greek: "τυφλός, ὁ", korean: "(명) 소경" }, { greek: "ἀπολύω, ἀπολύσω, ἀπέλυσα", korean: "(동) 내가 놓아주다, 해고하다, 해산시키다" }, { greek: "ἐκήρυξα", korean: "(동) 내가 전파하였다, 선포하였다 (κηρύσσω의 부정과거)" }, { greek: "ἐπιστρέφω, ἐπιστρέψω, ἐπέστρεψα", korean: "(동) 내가 돌이키다, 돌아가다" }, { greek: "ἑτοιμάζω, ἑτοιμάσω, ἡτοίμασα", korean: "(동) 내가 준비하다, 예비하다" }, { greek: "ἤδη", korean: "(부) 이미, 벌써" }, { greek: "θαυμάζω, θαυμάσω, ἐθαύμασα", korean: "(동) 내가 이상하게 여기다, 놀라다" }, { greek: "θεραπεύω, θεραπεύσω, ἐθεράπευσα", korean: "(동) 내가 고치다, 낫게하다" }, { greek: "πείθω, πείσω, ἔπεισα", korean: "(동) 내가 설복시키다, 믿게하다" }, { greek: "πιστεύω, πιστεύσω, ἐπίστευσα", korean: "(동) 내가 믿다" }, { greek: "ὑпоστρέφω, ὑποστρέψω, ὑπέστρεψα", korean: "(동) 내가 돌아서다, 돌아가다" }
+            ],
+            inflections: [
+                { title: '현재 능동태 직설법 (λύω)', content: '<table class="inflection-table"><thead><tr><th></th><th>단수</th><th>복수</th></tr></thead><tbody><tr><th>1인칭</th><td>λύω</td><td>λύομεν</td></tr><tr><th>2인칭</th><td>λύεις</td><td>λύετε</td></tr><tr><th>3인칭</th><td>λύει</td><td>λύουσι(ν)</td></tr></tbody></table>' }, { title: '헬라어 정관사의 변화', content: '<table class="inflection-table"><thead><tr><th></th><th colspan="3">단수</th><th colspan="3">복수</th></tr><tr><th></th><th>남성</th><th>여성</th><th>중성</th><th>남성</th><th>여성</th><th>중성</th></tr></thead><tbody><tr><td>주격</td><td>ὁ</td><td>ἡ</td><td>τό</td><td>οἱ</td><td>αἱ</td><td>τά</td></tr><tr><td>소유격</td><td>τοῦ</td><td>τῆς</td><td>τοῦ</td><td>τῶν</td><td>τῶν</td><td>τῶν</td></tr><tr><td>여격</td><td>τῷ</td><td>τῇ</td><td>τῷ</td><td>toῖς</td><td>ταῖς</td><td>τοῖς</td></tr><tr><td>목적격</td><td>τόν</td><td>τήν</td><td>τό</td><td>τούς</td><td>τάς</td><td>τά</td></tr></tbody></table>' }, { title: '제1부정과거 능동태 직설법 (λύω)', content: '<table class="inflection-table"><thead><tr><th>인칭</th><th>단수</th><th>복수</th></tr></thead><tbody><tr><th>1인칭</th><td>ἔλυσα</td><td>ἐλύσαμεν</td></tr><tr><th>2인칭</th><td>ἔλυσας</td><td>ἐλύσατε</td></tr><tr><th>3인칭</th><td>ἔλυσε(ν)</td><td>ἔλυσαν</td></tr></tbody></table>' }, { title: '제1부정과거 중간태 직설법 (λύω)', content: '<table class="inflection-table"><thead><tr><th>인칭</th><th>단수</th><th>복수</th></tr></thead><tbody><tr><th>1인칭</th><td>ἐλυσάμην</td><td>ἐλυσάμεθα</td></tr><tr><th>2인칭</th><td>ἐλύσω</td><td>ἐλύσασθε</td></tr><tr><th>3인칭</th><td>ἐλύσατο</td><td>ἐλύσαντο</td></tr></tbody></table>' }
+            ],
+            sentences: [
+                // 9과
+                { greek: "οὗτοι οἱ διδάσκαλοι κρίνουσιν αὐτὸν τὸν ἀπόστολον.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>οὗτοι</td><td>οὗτος</td><td>남,복,주</td><td>이(들이)</td></tr><tr><td>οἱ</td><td>ὁ</td><td>남,복,주</td><td>(그)</td></tr><tr><td>διδάσκαλοι</td><td>διδάσκαλος</td><td>남,복,주</td><td>선생들이</td></tr><tr><td>κρίνουσιν</td><td>κρίνω</td><td>현,능,직,3,복</td><td>심판한다</td></tr><tr><td>αὐτὸν</td><td>αὐτός</td><td>3인,남,단,대,강조</td><td>자신을</td></tr><tr><td>τὸν</td><td>ὁ</td><td>남,단,대</td><td>그</td></tr><tr><td>ἀπόστολον</td><td>ἀπόστολος</td><td>남,단,대</td><td>사도를</td></tr></tbody></table>`, translation: "이 선생들이 그 사도 자신을 심판한다." },
+                { greek: "ὁ δὲ αὐτὸς διδάσκαλος ἔχει τὴν αὐτὴν χαρὰν ἐν τῇ καρδίᾳ αὐτοῦ.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ὁ</td><td>ὁ</td><td>남,단,주</td><td>(그)</td></tr><tr><td>δὲ</td><td>δέ</td><td>접속사</td><td>그러나</td></tr><tr><td>αὐτὸς</td><td>αὐτός</td><td>남,단,주,강조</td><td>바로 그</td></tr><tr><td>διδάσκαλος</td><td>διδάσκαλος</td><td>남,단,주</td><td>선생님이</td></tr><tr><td>ἔχει</td><td>ἔχω</td><td>현,능,직,3,단</td><td>가진다</td></tr><tr><td>τὴν</td><td>ἡ</td><td>여,단,대</td><td>그</td></tr><tr><td>αὐτὴν</td><td>αὐτός</td><td>여,단,대,강조</td><td>같은</td></tr><tr><td>χαρὰν</td><td>χαρά</td><td>여,단,대</td><td>기쁨을</td></tr><tr><td>ἐν</td><td>ἐν</td><td>전치사</td><td>~안에</td></tr><tr><td>τῇ</td><td>ἡ</td><td>여,단,여</td><td>(그)</td></tr><tr><td>καρδίᾳ</td><td>καρδία</td><td>여,단,여</td><td>마음(에)</td></tr><tr><td>αὐτοῦ</td><td>αὐτός</td><td>3인,남,단,속</td><td>그의</td></tr></tbody></table>`, translation: "그러나 바로 그 선생님이 그의 마음 안에 같은 기쁨을 가진다." },
+                { greek: "νῦν λαμβάνω αὐτὸς τὸ αὐτὸ εὐαγγέλιον ἀπὸ τοῦ κυρίου μου.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>νῦν</td><td>νῦν</td><td>부사</td><td>지금</td></tr><tr><td>λαμβάνω</td><td>λαμβάνω</td><td>현,능,직,1,단</td><td>내가 취한다</td></tr><tr><td>αὐτὸς</td><td>αὐτός</td><td>남,단,주,강조</td><td>내 자신이</td></tr><tr><td>τὸ</td><td>τό</td><td>중,단,대</td><td>(그)</td></tr><tr><td>αὐτὸ</td><td>αὐτός</td><td>중,단,대,강조</td><td>바로 그</td></tr><tr><td>εὐαγγέλιον</td><td>εὐαγγέλιον</td><td>중,단,대</td><td>복음을</td></tr><tr><td>ἀπὸ</td><td>ἀπό</td><td>전치사</td><td>~로부터</td></tr><tr><td>τοῦ</td><td>ὁ</td><td>남,단,속</td><td>(그)</td></tr><tr><td>κυρίου</td><td>κύριος</td><td>남,단,속</td><td>주님의</td></tr><tr><td>μου</td><td>ἐγώ</td><td>1인,단,속</td><td>나의</td></tr></tbody></table>`, translation: "지금 내 자신이 나의 주님으로부터 바로 그 복음을 취한다." },
+                { greek: "οὗτος βλέπει ἐκεῖνον καὶ κρίνει αὐτόν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>οὗτος</td><td>οὗτος</td><td>남,단,주</td><td>이 사람은</td></tr><tr><td>βλέπει</td><td>βλέπω</td><td>현,능,직,3,단</td><td>그가 본다</td></tr><tr><td>ἐκεῖνον</td><td>ἐκεῖνος</td><td>남,단,대</td><td>저 남자를</td></tr><tr><td>καὶ</td><td>καί</td><td>접속사</td><td>그리고</td></tr><tr><td>κρίνει</td><td>κρίνω</td><td>현,능,직,3,단</td><td>심판한다</td></tr><tr><td>αὐτόν</td><td>αὐτός</td><td>3인,남,단,대</td><td>그를</td></tr></tbody></table>`, translation: "이 사람은 저 남자를 보고 그를 심판한다." },
+                { greek: "μετὰ ταῦτα ἔχετε αὐτοὶ τὴν ἀγάπην τοῦ κυρίου ἐν ταῖς καρδίαις ὑμῶν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>μετὰ</td><td>μετά</td><td>전치사</td><td>~후에</td></tr><tr><td>ταῦτα</td><td>οὗτος</td><td>중,복,대</td><td>이것들</td></tr><tr><td>ἔχετε</td><td>ἔχω</td><td>현,능,직,2,복</td><td>너희가 가진다</td></tr><tr><td>αὐτοὶ</td><td>αὐτός</td><td>남,복,주,강조</td><td>너희 자신이</td></tr><tr><td>τὴν</td><td>ἡ</td><td>여,단,대</td><td>그</td></tr><tr><td>ἀγάπην</td><td>ἀγάπη</td><td>여,단,대</td><td>사랑을</td></tr><tr><td>τοῦ</td><td>ὁ</td><td>남,단,속</td><td>(그)</td></tr><tr><td>κυρίου</td><td>κύριος</td><td>남,단,속</td><td>주님의</td></tr><tr><td>ἐν</td><td>ἐν</td><td>전치사</td><td>~안에</td></tr><tr><td>ταῖς</td><td>ἡ</td><td>여,복,여</td><td>그</td></tr><tr><td>καρδίαις</td><td>καρδία</td><td>여,복,여</td><td>마음들(에)</td></tr><tr><td>ὑμῶν</td><td>σύ</td><td>2인,복,속</td><td>너희의</td></tr></tbody></table>`, translation: "이것들 후에 너희 자신이 너희들 마음 안에 주님의 사랑을 가지고 있다." },
+                { greek: "οὗτοι ἔχουσι χαράν, ἐκεῖνοι δὲ ἔχουσιν ἁμαρτίαν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>οὗτοι</td><td>οὗτος</td><td>남,복,주</td><td>이 사람들은</td></tr><tr><td>ἔχουσι</td><td>ἔχω</td><td>현,능,직,3,복</td><td>가진다</td></tr><tr><td>χαράν</td><td>χαρά</td><td>여,단,대</td><td>기쁨을</td></tr><tr><td>ἐκεῖνοι</td><td>ἐκεῖνος</td><td>남,복,주</td><td>저 사람들은</td></tr><tr><td>δὲ</td><td>δέ</td><td>접속사</td><td>그러나</td></tr><tr><td>ἔχουσιν</td><td>ἔχω</td><td>현,능,직,3,복</td><td>가진다</td></tr><tr><td>ἁμαρτίαν</td><td>ἁμαρτία</td><td>여,단,대</td><td>죄를</td></tr></tbody></table>`, translation: "이 사람들은 기쁨을 가지나, 저 사람들은 죄를 가진다." },
+                { greek: "αὕτη δέ ἐστιν ἡ φωνὴ τοῦ κυρίου αὐτοῦ.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>αὕτη</td><td>οὗτος</td><td>여,단,주</td><td>이것은</td></tr><tr><td>δὲ</td><td>δέ</td><td>접속사</td><td>그러나</td></tr><tr><td>ἐστιν</td><td>εἰμί</td><td>현,직,3,단</td><td>~이다</td></tr><tr><td>ἡ</td><td>ἡ</td><td>여,단,주</td><td>그</td></tr><tr><td>φωνὴ</td><td>φωνή</td><td>여,단,주</td><td>음성</td></tr><tr><td>τοῦ</td><td>ὁ</td><td>남,단,속</td><td>그</td></tr><tr><td>κυρίου</td><td>κύριος</td><td>남,단,속</td><td>주님의</td></tr><tr><td>αὐτοῦ</td><td>αὐτός</td><td>3인,남,단,속,강조</td><td>자신(의)</td></tr></tbody></table>`, translation: "그러나 이것은 주님 자신의 음성이다." },
+                { greek: "οὕτως γινώσκομεν τοῦτον καὶ βλέπομεν τὸ πρόσωπον αὐτοῦ.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>οὕτως</td><td>оὕτως</td><td>부사</td><td>그와 같이</td></tr><tr><td>γινώσκομεν</td><td>γινώσκω</td><td>현,능,직,1,복</td><td>우리가 안다</td></tr><tr><td>τοῦτον</td><td>οὗτος</td><td>남,단,대</td><td>이 남자를</td></tr><tr><td>καὶ</td><td>καί</td><td>접속사</td><td>그리고</td></tr><tr><td>βλέπομεν</td><td>βλέπω</td><td>현,능,직,1,복</td><td>우리가 본다</td></tr><tr><td>τὸ</td><td>τό</td><td>중,단,대</td><td>그</td></tr><tr><td>πρόσωπον</td><td>πρόσωπον</td><td>중,단,대</td><td>얼굴을</td></tr><tr><td>αὐτοῦ</td><td>αὐτός</td><td>3인,남,단,속</td><td>그의</td></tr></tbody></table>`, translation: "그와 같이 우리는 이 사람을 알며, 그의 얼굴을 본다." },
+                { greek: "λαμβάνομεν ταῦτα τὰ δῶρα ἀπὸ τοῦ αὐτοῦ καὶ βλέπομεν αὐτόν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>λαμβάνομεν</td><td>λαμβάνω</td><td>현,능,직,1,복</td><td>우리가 취한다</td></tr><tr><td>ταῦτα</td><td>οὗτος</td><td>중,복,대</td><td>이</td></tr><tr><td>τὰ</td><td>τό</td><td>중,복,대</td><td>(그)</td></tr><tr><td>δῶρα</td><td>δῶρον</td><td>중,복,대</td><td>선물들을</td></tr><tr><td>ἀπὸ</td><td>ἀπό</td><td>전치사</td><td>~로부터</td></tr><tr><td>τοῦ</td><td>ὁ</td><td>남,단,속</td><td>그</td></tr><tr><td>αὐτοῦ</td><td>αὐτός</td><td>3인,남,단,속</td><td>사람의</td></tr><tr><td>καὶ</td><td>καί</td><td>접속사</td><td>그리고</td></tr><tr><td>βλέπομεν</td><td>βλέπω</td><td>현,능,직,1,복</td><td>우리가 본다</td></tr><tr><td>αὐτόν</td><td>αὐτός</td><td>3인,남,단,대</td><td>그를</td></tr></tbody></table>`, translation: "우리는 그 사람으로부터 이 선물들을 취하며, 우리는 그를 본다." },
+                { greek: "αὐτὸς βαπτίζεις ἐκεῖνον καὶ σὺ εἶ ἀδελφὸς αὐτοῦ.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>αὐτὸς</td><td>αὐτός</td><td>남,단,주,강조</td><td>네 자신이</td></tr><tr><td>βαπτίζεις</td><td>βαπτίζω</td><td>현,능,직,2,단</td><td>네가 세례 준다</td></tr><tr><td>ἐκεῖνον</td><td>ἐκεῖνος</td><td>남,단,대</td><td>저 남자를</td></tr><tr><td>καὶ</td><td>καί</td><td>접속사</td><td>그리고</td></tr><tr><td>σὺ</td><td>σύ</td><td>2인,단,주</td><td>너는</td></tr><tr><td>εἶ</td><td>εἰμί</td><td>현,직,2,단</td><td>~이다</td></tr><tr><td>ἀδελφὸς</td><td>ἀδελφός</td><td>남,단,주</td><td>형제</td></tr><tr><td>αὐτοῦ</td><td>αὐτός</td><td>3인,남,단,속</td><td>그의</td></tr></tbody></table>`, translation: "네 자신이 저 남자를 세례 주고, 너는 그의 형제이다." },
+                // 10과
+                { greek: "λύονται οὗτοι οἱ δοῦλοι ὑπὸ τοῦ κυρίου.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>λύονται</td><td>λύω</td><td>현,수,직,3,복</td><td>풀려진다</td></tr><tr><td>οὗτοι</td><td>οὗτος</td><td>남,복,주</td><td>이</td></tr><tr><td>οἱ</td><td>ὁ</td><td>남,복,주</td><td>(그)</td></tr><tr><td>δοῦλοι</td><td>δοῦλος</td><td>남,복,주</td><td>종들이</td></tr><tr><td>ὑπὸ</td><td>ὑπό</td><td>전치사</td><td>~로 말미암아</td></tr><tr><td>τοῦ</td><td>ὁ</td><td>남,단,속</td><td>(그)</td></tr><tr><td>κυρίου</td><td>κύριος</td><td>남,단,속</td><td>주님의</td></tr></tbody></table>`, translation: "이 종들이 주님으로 말미암아 풀려난다." },
+                { greek: "τῷ λόγῳ τοῦ κυρίου ἀγόμεθα εἰς τὴν ἐκκλησίαν τοῦ θεοῦ.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>τῷ</td><td>ὁ</td><td>남,단,여</td><td>(그)</td></tr><tr><td>λόγῳ</td><td>λόγος</td><td>남,단,여</td><td>말씀으로</td></tr><tr><td>τοῦ</td><td>ὁ</td><td>남,단,속</td><td>(그)</td></tr><tr><td>κυρίου</td><td>κύριος</td><td>남,단,속</td><td>주님의</td></tr><tr><td>ἀγόμεθα</td><td>ἄγω</td><td>현,수,직,1,복</td><td>인도된다</td></tr><tr><td>εἰς</td><td>εἰς</td><td>전치사</td><td>~안으로</td></tr><tr><td>τὴν</td><td>ἡ</td><td>여,단,대</td><td>그</td></tr><tr><td>ἐκκλησίαν</td><td>ἐκκλησία</td><td>여,단,대</td><td>교회</td></tr><tr><td>τοῦ</td><td>ὁ</td><td>남,단,속</td><td>(그)</td></tr><tr><td>θεοῦ</td><td>θεός</td><td>남,단,속</td><td>하나님의</td></tr></tbody></table>`, translation: "그 주님의 말씀으로 우리는 하나님의 교회 안으로 인도함을 받는다." },
+                { greek: "οὐκ ἀκούετε τῆς φωνῆς τοῦ προφήτου, ἀλλ' ἐξέρχεσθε ἐκ τοῦ οἴκου αὐτοῦ.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>οὐκ</td><td>οὐ</td><td>부정사</td><td>~아니다</td></tr><tr><td>ἀκούετε</td><td>ἀκούω</td><td>현,능,직,2,복</td><td>너희가 듣는다</td></tr><tr><td>τῆς</td><td>ἡ</td><td>여,단,속</td><td>그</td></tr><tr><td>φωνῆς</td><td>φωνή</td><td>여,단,속</td><td>목소리를</td></tr><tr><td>τοῦ</td><td>ὁ</td><td>남,단,속</td><td>그</td></tr><tr><td>προφήτου</td><td>προφήτης</td><td>남,단,속</td><td>예언자의</td></tr><tr><td>ἀλλ'</td><td>ἀλλά</td><td>접속사</td><td>그러나</td></tr><tr><td>ἐξέρχεσθε</td><td>ἐξέρχομαι</td><td>현,디포,직,2,복</td><td>나아간다</td></tr><tr><td>ἐκ</td><td>ἐκ</td><td>전치사</td><td>~밖으로</td></tr><tr><td>τοῦ</td><td>ὁ</td><td>남,단,속</td><td>(그)</td></tr><tr><td>οἴκου</td><td>οἶκος</td><td>남,단,속</td><td>집</td></tr><tr><td>αὐτοῦ</td><td>αὐτός</td><td>3인,남,단,속</td><td>그의</td></tr></tbody></table>`, translation: "너희는 그 예언자의 목소리를 듣지 않고, 오히려 그의 집에서 나간다." },
+                { greek: "τῷ λόγῳ αὐτοῦ τοῦ κυρίου γίνεσθε μαθηταὶ αὐτοῦ.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>τῷ</td><td>ὁ</td><td>남,단,여</td><td>그</td></tr><tr><td>λόγῳ</td><td>λόγος</td><td>남,단,여</td><td>말씀으로</td></tr><tr><td>αὐτοῦ</td><td>αὐτός</td><td>3인,남,단,속,강조</td><td>자신(의)</td></tr><tr><td>τοῦ</td><td>ὁ</td><td>남,단,속</td><td>그</td></tr><tr><td>κυρίου</td><td>κύριος</td><td>남,단,속</td><td>주님(의)</td></tr><tr><td>γίνεσθε</td><td>γίνομαι</td><td>현,디포,직,2,복</td><td>너희는 된다</td></tr><tr><td>μαθηταὶ</td><td>μαθητής</td><td>남,복,주</td><td>제자들이</td></tr><tr><td>αὐτοῦ</td><td>αὐτός</td><td>3인,남,단,속</td><td>그의</td></tr></tbody></table>`, translation: "그 주님 자신의 말씀으로 너희는 그의 제자들이 된다." },
+                { greek: "ἐκεῖνοι οἱ ἀγαθοὶ διδάσκαλοι οὐκ εἰσέρχονται εἰς τοὺς οἴκους τῶν ἁμαρτωλῶν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἐκεῖνοι</td><td>ἐκεῖνος</td><td>남,복,주</td><td>저</td></tr><tr><td>οἱ</td><td>ὁ</td><td>남,복,주</td><td>(그)</td></tr><tr><td>ἀγαθοὶ</td><td>ἀγαθός</td><td>남,복,주</td><td>선한</td></tr><tr><td>διδάσκαλοι</td><td>διδάσκαλος</td><td>남,복,주</td><td>선생들은</td></tr><tr><td>οὐκ</td><td>οὐ</td><td>부정사</td><td>~아니</td></tr><tr><td>εἰσέρχονται</td><td>εἰσέρχομαι</td><td>현,디포,직,3,복</td><td>들어간다</td></tr><tr><td>εἰς</td><td>εἰς</td><td>전치사</td><td>~안으로</td></tr><tr><td>τοὺς</td><td>ὁ</td><td>남,복,대</td><td>(그)</td></tr><tr><td>οἴκους</td><td>οἶκος</td><td>남,복,대</td><td>집들</td></tr><tr><td>τῶν</td><td>ὁ</td><td>남,복,속</td><td>(그)</td></tr><tr><td>ἁμαρτωλῶν</td><td>ἁμαρτωλός</td><td>남,복,속</td><td>죄인들의</td></tr></tbody></table>`, translation: "저 선한 선생들은 죄인들의 집으로 들어가지 않는다." },
+                { greek: "οὐ βαπτίζονται οἱ ἁμαρτωλοὶ ὑπὸ τῶν ἀποστόλων, ἀλλ' ἐξέρχονται ἐκ τούτων τῶν οἴκων πρὸς ἄλλους διδασκάλους.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>οὐ</td><td>οὐ</td><td>부정사</td><td>~않는다</td></tr><tr><td>βαπτίζονται</td><td>βαπτίζω</td><td>현,수,직,3,복</td><td>세례를 받는다</td></tr><tr><td>οἱ</td><td>ὁ</td><td>남,복,주</td><td>(그)</td></tr><tr><td>ἁμαρτωλοὶ</td><td>ἁμαρτωλός</td><td>남,복,주</td><td>죄인들이</td></tr><tr><td>ὑπὸ</td><td>ὑπό</td><td>전치사</td><td>~로 말미암아</td></tr><tr><td>τῶν</td><td>ὁ</td><td>남,복,속</td><td>(그)</td></tr><tr><td>ἀποστόλων</td><td>ἀπόστολος</td><td>남,복,속</td><td>사도들의</td></tr><tr><td>ἀλλ'</td><td>ἀλλά</td><td>접속사</td><td>그러나</td></tr><tr><td>ἐξέρχονται</td><td>ἐξέρχομαι</td><td>현,디포,직,3,복</td><td>나아간다</td></tr><tr><td>ἐκ</td><td>ἐκ</td><td>전치사</td><td>~밖으로</td></tr><tr><td>τούτων</td><td>οὗτος</td><td>남,복,속</td><td>이</td></tr><tr><td>τῶν</td><td>ὁ</td><td>남,복,속</td><td>(그)</td></tr><tr><td>οἴκων</td><td>оἶκος</td><td>남,복,속</td><td>집들</td></tr><tr><td>πρὸς</td><td>πρός</td><td>전치사</td><td>~를 향하여</td></tr><tr><td>ἄλλους</td><td>ἄλλος</td><td>남,복,대</td><td>다른</td></tr><tr><td>διδασκάλους</td><td>διδάσκαλος</td><td>남,복,대</td><td>선생들을</td></tr></tbody></table>`, translation: "죄인들은 사도들에게 세례를 받지 않고, 다른 선생들을 향하여 이 집들에서 나아간다." },
+                { greek: "λέγετε ἐκείνοις τοῖς ἁμαρτωλοῖς ὅτι σῴζεσθε ὑπὸ τοῦ θεοῦ ἀπὸ τῶν ἁμαρτιῶν ὑμῶν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>λέγετε</td><td>λέγω</td><td>현,능,직,2,복</td><td>너희가 말한다</td></tr><tr><td>ἐκείνοις</td><td>ἐκεῖνος</td><td>남,복,여</td><td>저</td></tr><tr><td>τοῖς</td><td>ὁ</td><td>남,복,여</td><td>(그)</td></tr><tr><td>ἁμαρτωλοῖς</td><td>ἁμαρτωλός</td><td>남,복,여</td><td>죄인들에게</td></tr><tr><td>ὅτι</td><td>ὅτι</td><td>접속사</td><td>~것을</td></tr><tr><td>σῴζεσθε</td><td>σῴζω</td><td>현,수,직,2,복</td><td>구원받는다</td></tr><tr><td>ὑπὸ</td><td>ὑπό</td><td>전치사</td><td>~로 말미암아</td></tr><tr><td>τοῦ</td><td>ὁ</td><td>남,단,속</td><td>(그)</td></tr><tr><td>θεοῦ</td><td>θεός</td><td>남,단,속</td><td>하나님의</td></tr><tr><td>ἀπò</td><td>ἀπό</td><td>전치사</td><td>~로부터</td></tr><tr><td>τῶν</td><td>ἡ</td><td>여,복,속</td><td>(그)</td></tr><tr><td>ἁμαρτιῶν</td><td>ἁμαρτία</td><td>여,복,속</td><td>죄들의</td></tr><tr><td>ὑμῶν</td><td>σύ</td><td>2인,복,속</td><td>너희의</td></tr></tbody></table>`, translation: "너희는 저 죄인들에게 \"너희가 너희의 죄들로부터 하나님께 구원받는다\"고 말한다." },
+                { greek: "ἄρχει αὐτὸς ὁ θεὸς τῆς βασιλείας αὐτοῦ.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἄρχει</td><td>ἄρχω</td><td>현,능,직,3,단</td><td>지배한다</td></tr><tr><td>αὐτὸς</td><td>αὐτός</td><td>남,단,주,강조</td><td>자신이</td></tr><tr><td>ὁ</td><td>ὁ</td><td>남,단,주</td><td>(그)</td></tr><tr><td>θεὸς</td><td>θεός</td><td>남,단,주</td><td>하나님이</td></tr><tr><td>τῆς</td><td>ἡ</td><td>여,단,속</td><td>그</td></tr><tr><td>βασιλείας</td><td>βασιλεία</td><td>여,단,속</td><td>왕국을</td></tr><tr><td>αὐτοῦ</td><td>αὐτός</td><td>3인,남,단,속</td><td>그의</td></tr></tbody></table>`, translation: "하나님 자신이 그의 왕국을 지배하신다." },
+                { greek: "εἰρήνην ἔχει ἡ ἐκκλησία, ὅτι σῴζεται ὑπὸ τοῦ κυρίου αὐτῆς.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>εἰρήνην</td><td>εἰρήνη</td><td>여,단,대</td><td>평화를</td></tr><tr><td>ἔχει</td><td>ἔχω</td><td>현,능,직,3,단</td><td>가진다</td></tr><tr><td>ἡ</td><td>ἡ</td><td>여,단,주</td><td>그</td></tr><tr><td>ἐκκλησία</td><td>ἐκκλησία</td><td>여,단,주</td><td>교회는</td></tr><tr><td>ὅτι</td><td>ὅτι</td><td>접속사</td><td>왜냐하면</td></tr><tr><td>σῴζεται</td><td>σῴζω</td><td>현,수,직,3,단</td><td>구원받기 때문이다</td></tr><tr><td>ὑπὸ</td><td>ὑπό</td><td>전치사</td><td>~로 말미암아</td></tr><tr><td>τοῦ</td><td>ὁ</td><td>남,단,속</td><td>(그)</td></tr><tr><td>κυρίου</td><td>κύριος</td><td>남,단,속</td><td>주님의</td></tr><tr><td>αὐτῆς</td><td>αὐτός</td><td>3인,여,단,속</td><td>그녀의(교회의)</td></tr></tbody></table>`, translation: "그 교회는 평화를 누리니, 이는 교회가 자신의 주님으로 말미암아 구원받기 때문이다." },
+                { greek: "οὐκ ἀποκρινόμεθα τῷ ἀποστόλῳ ὅτι οὐ γινώσκομεν αὐτόν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>οὐκ</td><td>οὐ</td><td>부정사</td><td>~아니</td></tr><tr><td>ἀпоκρινόμεθα</td><td>ἀποκρίνομαι</td><td>현,디포,직,1,복</td><td>대답한다</td></tr><tr><td>τῷ ἀποστόλῳ</td><td>ὁ, ἀπόστολος</td><td>남,단,여</td><td>사도에게</td></tr><tr><td>ὅτι</td><td>ὅτι</td><td>접속사</td><td>~때문에</td></tr><tr><td>οὐ γινώσκομεν</td><td>οὐ, γινώσκω</td><td>부정,동사</td><td>알지 못한다</td></tr><tr><td>αὐτόν</td><td>αὐτός</td><td>3인,남,단,대</td><td>그를</td></tr></tbody></table>`, translation: "우리는 그를 알지 못하기 때문에 그 사도에게 대답하지 않는다." },
+                // 11과
+                { greek: "ἠκούομεν τῆς φωνῆς αὐτοῦ ἐν ἐκείναις ταῖς ἡμέραις, νῦν δὲ οὐκέτι ἀκούομεν αὐτῆς.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἠκούομεν</td><td>ἀκούω</td><td>미완,능,직,1,복</td><td>듣고 있었다</td></tr><tr><td>τῆς φωνῆς</td><td>ἡ φωνή</td><td>여,단,속</td><td>그 목소리를</td></tr><tr><td>αὐτοῦ</td><td>αὐτός</td><td>3인,남,단,속</td><td>그의</td></tr><tr><td>ἐν...ἡμέραις</td><td>ἐν, ἡμέρα</td><td>전치사구</td><td>그 날들에</td></tr><tr><td>νῦν δὲ</td><td>νῦν, δέ</td><td>부사,접속사</td><td>지금 그러나</td></tr><tr><td>οὐκέτι</td><td>οὐκέτι</td><td>부사</td><td>더 이상 아니다</td></tr><tr><td>ἀκούομεν</td><td>ἀκούω</td><td>현,능,직,1,복</td><td>우리는 듣는다</td></tr><tr><td>αὐτῆς</td><td>αὐτός</td><td>3인,여,단,속</td><td>그것을</td></tr></tbody></table>`, translation: "저 날들에는 우리가 그의 목소리를 듣고 있었으나, 지금은 더 이상 그것을 듣지 않는다." },
+                { greek: "ὁ δὲ μαθητὴς τοῦ κυρίου ἔλεγε παραβολὴν τοῖς ἀδελφοῖς αὐτοῦ.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ὁ...μαθητὴς</td><td>ὁ, μαθητής</td><td>남,단,주</td><td>그 제자는</td></tr><tr><td>δὲ</td><td>δέ</td><td>접속사</td><td>그러나</td></tr><tr><td>τοῦ κυρίου</td><td>ὁ, κύριος</td><td>남,단,속</td><td>주님의</td></tr><tr><td>ἔλεγε</td><td>λέγω</td><td>미완,능,직,3,단</td><td>말하고 있었다</td></tr><tr><td>παραβολὴν</td><td>παραβολή</td><td>여,단,대</td><td>비유를</td></tr><tr><td>τοῖς ἀδελφοῖς</td><td>ὁ, ἀδελφός</td><td>남,복,여</td><td>형제들에게</td></tr><tr><td>αὐτοῦ</td><td>αὐτός</td><td>3인,남,단,속</td><td>그의</td></tr></tbody></table>`, translation: "그리고 주님의 제자는 그의 형제들에게 비유를 말하고 있었다." },
+                { greek: "ἀπέκτεινον οἱ δοῦλοι τὰ τέκνα σὺν τοῖς μαθηταῖς.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἀπέκτεινον</td><td>ἀποκτείνω</td><td>미완,능,직,3,복</td><td>죽이고 있었다</td></tr><tr><td>οἱ δοῦλοι</td><td>ὁ, δοῦλος</td><td>남,복,주</td><td>그 종들이</td></tr><tr><td>τὰ τέκνα</td><td>τό, τέκνον</td><td>중,복,대</td><td>그 아이들을</td></tr><tr><td>σὺν τοῖς μαθηταῖς</td><td>σύν, ὁ, μαθητής</td><td>전치사구</td><td>제자들과 함께</td></tr></tbody></table>`, translation: "그 종들이 제자들과 함께 그 아이들을 죽이고 있었다." },
+                { greek: "τότε μὲν κατέβαινον εἰς τὸν οἶκον, νῦν δὲ οὐκέτι καταβαίνω.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>τότε μὲν</td><td>τότε, μέν</td><td>부사,불변사</td><td>그때 한편</td></tr><tr><td>κατέβαινον</td><td>καταβαίνω</td><td>미완,능,직,1,단</td><td>내려가고 있었다</td></tr><tr><td>εἰς τὸν οἶκον</td><td>εἰς, ὁ, οἶκος</td><td>전치사구</td><td>그 집으로</td></tr><tr><td>νῦν δὲ</td><td>νῦν, δέ</td><td>부사,접속사</td><td>지금 다른 한편</td></tr><tr><td>οὐκέτι</td><td>οὐκέτι</td><td>부사</td><td>더 이상 아니다</td></tr><tr><td>καταβαίνω</td><td>καταβαίνω</td><td>현,능,직,1,단</td><td>나는 내려간다</td></tr></tbody></table>`, translation: "그때 나는 그 집으로 내려가고 있었지만, 지금은 더 이상 내려가지 않는다." },
+                { greek: "παρελαμβάνετε τὸν ἄρτον παρὰ τῶν δούλων καὶ ἠσθίετε αὐτόν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>παρελαμβάνετε</td><td>παραλαμβάνω</td><td>미완,능,직,2,복</td><td>받고 있었다</td></tr><tr><td>τὸν ἄρτον</td><td>ὁ, ἄρτος</td><td>남,단,대</td><td>그 떡을</td></tr><tr><td>παρὰ τῶν δούλων</td><td>παρά, ὁ, δοῦλος</td><td>전치사구</td><td>종들로부터</td></tr><tr><td>καὶ</td><td>καί</td><td>접속사</td><td>그리고</td></tr><tr><td>ἠσθίετε</td><td>ἐσθίω</td><td>미완,능,직,2,복</td><td>먹고 있었다</td></tr><tr><td>αὐτόν</td><td>αὐτός</td><td>3인,남,단,대</td><td>그것을</td></tr></tbody></table>`, translation: "너희는 그 종들로부터 떡을 받고 그것을 먹고 있었다." },
+                { greek: "διὰ τὴν ἀλήθειαν ἀπέθνησκον οἱ μαθηταὶ ἐν ταῖς ἡμέραις ἐκείναις.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>διὰ τὴν ἀλήθειαν</td><td>διά, ἡ, ἀλήθεια</td><td>전치사구</td><td>진리 때문에</td></tr><tr><td>ἀπέθνησκον</td><td>ἀποθνῄσκω</td><td>미완,능,직,3,복</td><td>죽고 있었다</td></tr><tr><td>οἱ μαθηταὶ</td><td>ὁ, μαθητής</td><td>남,복,주</td><td>그 제자들이</td></tr><tr><td>ἐν...ἐκείναις</td><td>ἐν, ἐκεῖνος</td><td>전치사구</td><td>저 날들에</td></tr></tbody></table>`, translation: "그 진리 때문에 제자들이 저 시대에 죽어가고 있었다." },
+                { greek: "συνῆγεν οὗτος ὁ ἀπόστολος εἰς τὴν ἐκκλησίαν τοὺς μαθητὰς τοῦ κυρίου ἡμῶν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>συνῆγεν</td><td>συνάγω</td><td>미완,능,직,3,단</td><td>모으고 있었다</td></tr><tr><td>οὗτος ὁ ἀπόστολος</td><td>οὗτος, ὁ, ἀπόστολος</td><td>남,단,주</td><td>이 사도가</td></tr><tr><td>εἰς τὴν ἐκκλησίαν</td><td>εἰς, ἡ, ἐκκλησία</td><td>전치사구</td><td>교회로</td></tr><tr><td>τοὺς μαθητὰς</td><td>ὁ, μαθητής</td><td>남,복,대</td><td>제자들을</td></tr><tr><td>τοῦ κυρίου ἡμῶν</td><td>ὁ, κύριος, ἐγώ</td><td>남,단,속 / 1인,복,속</td><td>우리 주님의</td></tr></tbody></table>`, translation: "이 사도는 우리 주님의 제자들을 교회로 모으고 있었다." },
+                { greek: "νῦν μὲν διδασκόμεθα ὑπὸ τῶν ἀποστόλων, τότε δὲ ἐδιδάσκομεν ἡμεῖς τὴν ἐκκλησίαν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>νῦν μὲν</td><td>νῦν, μέν</td><td>부사,불변사</td><td>지금 한편</td></tr><tr><td>διδασκόμεθα</td><td>διδάσκω</td><td>현,수,직,1,복</td><td>가르침받는다</td></tr><tr><td>ὑπὸ τῶν ἀποστόλων</td><td>ὑπό, ὁ, ἀπόστολος</td><td>전치사구</td><td>사도들에게</td></tr><tr><td>τότε δὲ</td><td>τότε, δέ</td><td>부사,접속사</td><td>그때 다른 한편</td></tr><tr><td>ἐδιδάσκομεν</td><td>διδάσκω</td><td>미완,능,직,1,복</td><td>가르치고 있었다</td></tr><tr><td>ἡμεῖς</td><td>ἐγώ</td><td>1인,복,주</td><td>우리들이</td></tr><tr><td>τὴν ἐκκλησίαν</td><td>ἡ, ἐκκλησία</td><td>여,단,대</td><td>교회를</td></tr></tbody></table>`, translation: "지금은 우리가 사도들에게 가르침을 받지만, 그때에는 우리들이 교회를 가르치고 있었다." },
+                { greek: "ὁ κύριος ἡμῶν ἦρεν τὰς ἁμαρτίας ἡμῶν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ὁ κύριος ἡμῶν</td><td>ὁ, κύριος, ἐγώ</td><td>남,단,주 / 1인,복,속</td><td>우리 주님은</td></tr><tr><td>ἦρεν</td><td>αἴρω</td><td>1부정과거,능,직,3,단</td><td>없애셨다</td></tr><tr><td>τὰς ἁμαρτίας ἡμῶν</td><td>ἡ, ἁμαρτία, ἐγώ</td><td>여,복,대 / 1인,복,속</td><td>우리의 죄들을</td></tr></tbody></table>`, translation: "우리 주님께서 우리의 죄들을 없애셨다." },
+                { greek: "τότε μὲν ἀνέβαινον εἰς τὸ ἱερόν, νῦν δὲ οὐκέτι ἀναβαίνουσιν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>τότε μὲν</td><td>τότε, μέν</td><td>부사,불변사</td><td>그때 한편</td></tr><tr><td>ἀνέβαινον</td><td>ἀναβαίνω</td><td>미완,능,직,3,복</td><td>올라가고 있었다</td></tr><tr><td>εἰς τὸ ἱερόν</td><td>εἰς, τό, ἱερόν</td><td>전치사구</td><td>성전으로</td></tr><tr><td>νῦν δὲ</td><td>νῦν, δέ</td><td>부사,접속사</td><td>지금 다른 한편</td></tr><tr><td>οὐκέτι</td><td>οὐκέτι</td><td>부사</td><td>더 이상 아니다</td></tr><tr><td>ἀναβαίνουσιν</td><td>ἀναβαίνω</td><td>현,능,직,3,복</td><td>올라간다</td></tr></tbody></table>`, translation: "그때 그들은 성전에 올라가고 있었지만, 지금은 더 이상 올라가지 않는다." },
+                // 12과
+                { greek: "ἐγράφοντο οὗτοι οἱ λόγοι ἐν βιβλίῳ.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἐγράφοντο</td><td>γράφω</td><td>미완,수,직,3,복</td><td>기록되고 있었다</td></tr><tr><td>οὗτοι οἱ λόγοι</td><td>οὗτος, ὁ, λόγος</td><td>남,복,주</td><td>이 말씀들이</td></tr><tr><td>ἐν βιβλίῳ</td><td>ἐν, βιβλίον</td><td>전치사구</td><td>책에</td></tr></tbody></table>`, translation: "이 말씀들이 책에 기록되고 있었다." },
+                { greek: "ἐδιδάσκομην ὑπ' αὐτοῦ ἐκ τῶν βιβλίων τῶν προφητῶν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἐδιδάσκομην</td><td>διδάσκω</td><td>미완,수,직,1,단</td><td>가르침받고 있었다</td></tr><tr><td>ὑπ' αὐτοῦ</td><td>ὑπό, αὐτός</td><td>전치사구</td><td>그에게</td></tr><tr><td>ἐκ τῶν...προφητῶν</td><td>ἐκ, ὁ, βιβλίον, ὁ, προφήτης</td><td>전치사구</td><td>예언자들의 책들로부터</td></tr></tbody></table>`, translation: "나는 그 예언자들의 책들을 통해 그에게서 가르침을 받고 있었다." },
+                { greek: "ἐν ἐκείναις ταῖς ἡμέραις καὶ ἐδιδασκόμεθα ὑπ' αὐτοῦ καὶ ἐδιδάσκομεν τοὺς ἄλλους, ἀλλὰ νῦν οὐδὲ διδασκόμεθα οὐδὲ διδάσκομεν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἐν...ἡμέραις</td><td>ἐν, ἡμέρα</td><td>전치사구</td><td>저 날들에는</td></tr><tr><td>καὶ ἐδιδασκόμεθα</td><td>καί, διδάσκω</td><td>접속사,동사</td><td>또한 가르침받고</td></tr><tr><td>καὶ ἐδιδάσκομεν</td><td>καί, διδάσκω</td><td>접속사,동사</td><td>또한 가르쳤다</td></tr><tr><td>ἀλλὰ νῦν</td><td>ἀλλά, νῦν</td><td>접속사,부사</td><td>그러나 지금은</td></tr><tr><td>οὐδὲ...οὐδὲ</td><td>οὐδέ</td><td>접속사</td><td>~도 ~도 아니다</td></tr></tbody></table>`, translation: "저 날들에는 우리가 그에게서 가르침을 받기도 하고 다른 사람들을 가르치기도 했지만, 지금은 가르침을 받지도 않고 가르치지도 않는다." },
+                { greek: "ἀπήρχοντο οἱ ἁμαρτωλοὶ πρὸς τὴν θάλασσαν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἀπήρχοντο</td><td>ἀπέρχομαι</td><td>미완,디포,직,3,복</td><td>가고 있었다</td></tr><tr><td>οἱ ἁμαρτωλοὶ</td><td>ὁ, ἁμαρτωλός</td><td>남,복,주</td><td>그 죄인들이</td></tr><tr><td>πρὸς τὴν θάλασσαν</td><td>πρός, ἡ, θάλασσα</td><td>전치사구</td><td>바다를 향해</td></tr></tbody></table>`, translation: "그 죄인들이 바다를 향해 가고 있었다." },
+                { greek: "ἐξεпоρεύετο πρὸς αὐτὸν ἡ ἐκκλησία, ἀλλὰ νῦν οὐκέτι ἐκπορεύεται.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἐξεπορεύετο</td><td>ἐκπορεύομαι</td><td>미완,디포,직,3,단</td><td>나가고 있었다</td></tr><tr><td>πρὸς αὐτὸν</td><td>πρός, αὐτός</td><td>전치사구</td><td>그에게로</td></tr><tr><td>ἡ ἐκκλησία</td><td>ἡ, ἐκκλησία</td><td>여,단,주</td><td>그 교회가</td></tr><tr><td>ἀλλὰ νῦν</td><td>ἀλλά, νῦν</td><td>접속사,부사</td><td>그러나 지금</td></tr><tr><td>οὐκέτι ἐκπορεύεται</td><td>οὐκέτι, ἐκπορεύομαι</td><td>부사,동사</td><td>더 이상 나가지 않는다</td></tr></tbody></table>`, translation: "그 교회가 그에게로 나아가고 있었으나, 지금은 더 이상 나아가지 않는다." },
+                { greek: "οὔπω βλέπομεν τὸν κύριον ἐν τῇ δόξῃ αὐτοῦ, ἀλλὰ ἐδιδασκόμεθα ὑπ' αὐτοῦ καὶ ἐν ταῖς ἡμέραις ταῖς κακαῖς.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>οὔπω βλέπομεν</td><td>οὔπω, βλέπω</td><td>부사,동사</td><td>아직 보지 못한다</td></tr><tr><td>τὸν κύριον</td><td>ὁ, κύριος</td><td>남,단,대</td><td>주님을</td></tr><tr><td>ἐν τῇ δόξῃ</td><td>ἐν, ἡ, δόξα</td><td>전치사구</td><td>영광 가운데</td></tr><tr><td>ἀλλὰ ἐδιδασκόμεθα</td><td>ἀλλά, διδάσκω</td><td>접속사,동사</td><td>그러나 가르침받았다</td></tr><tr><td>ἐν...κακαῖς</td><td>ἐν, κακός</td><td>전치사구</td><td>악한 날들 속에서조차</td></tr></tbody></table>`, translation: "우리는 아직 그의 영광 가운데 계신 주님을 보지 못하지만, 악한 날들 속에서조차 그분께 가르침을 받고 있었다." },
+                { greek: "ἐλέγετο ἐν τῷ ἱερῷ καλὸς λόγος περὶ τούτου τοῦ ἀποστόλου.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἐλέγετο</td><td>λέγω</td><td>미완,수,직,3,단</td><td>말해지고 있었다</td></tr><tr><td>ἐν τῷ ἱερῷ</td><td>ἐν, τό, ἱερόν</td><td>전치사구</td><td>성전에서</td></tr><tr><td>καλὸς λόγος</td><td>καλός, λόγος</td><td>남,단,주</td><td>선한 말씀이</td></tr><tr><td>περὶ...ἀποστόλου</td><td>περί, οὗτος, ὁ, ἀπόστολος</td><td>전치사구</td><td>이 사도에 대하여</td></tr></tbody></table>`, translation: "성전에서는 이 사도에 대한 선한 말씀이 이야기되고 있었다." },
+                { greek: "περὶ αὐτὸν ἐβλέπετο δόξα αὐτοῦ.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>περὶ αὐτὸν</td><td>περί, αὐτός</td><td>전치사구</td><td>그 주위에</td></tr><tr><td>ἐβλέπετο</td><td>βλέπω</td><td>미완,수,직,3,단</td><td>보여지고 있었다</td></tr><tr><td>δόξα αὐτοῦ</td><td>δόξα, αὐτός</td><td>여,단,주/남,단,속</td><td>그의 영광이</td></tr></tbody></table>`, translation: "그의 영광이 그 주위에서 보여지고 있었다." },
+                { greek: "ἐφέρετο τὰ δῶρα καὶ πρὸς τοὺς πονηρούς.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἐφέρετο</td><td>φέρω</td><td>미완,수,직,3,단</td><td>옮겨지고 있었다</td></tr><tr><td>τὰ δῶρα</td><td>τό, δῶρον</td><td>중,복,주</td><td>그 선물들이</td></tr><tr><td>καὶ πρὸς...</td><td>καί, πρός, ὁ, πονηρός</td><td>접속사,전치사구</td><td>악한 자들에게도</td></tr></tbody></table>`, translation: "그 선물들은 악한 자들에게도 옮겨지고 있었다." },
+                { greek: "ἐδέχου τὰ βιβλία ἀπὸ τῶν προφητῶν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἐδέχου</td><td>δέχομαι</td><td>미완,디포,직,2,단</td><td>너는 받았다</td></tr><tr><td>τὰ βιβλία</td><td>τό, βιβλίον</td><td>중,복,대</td><td>그 책들을</td></tr><tr><td>ἀπὸ τῶν προφητῶν</td><td>ἀπό, ὁ, προφήτης</td><td>전치사구</td><td>예언자들로부터</td></tr></tbody></table>`, translation: "너는 예언자들로부터 그 책들을 받았다." },
+                // 13과
+                { greek: "ἄξει ὁ κύριος τοὺς μαθητὰς αὐτοῦ εἰς τὴν βασιλείαν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἄξει</td><td>ἄγω</td><td>미래,능,직,3,단</td><td>인도할 것이다</td></tr><tr><td>ὁ κύριος</td><td>ὁ, κύριος</td><td>남,단,주</td><td>주님께서</td></tr><tr><td>τοὺς μαθητὰς</td><td>ὁ, μαθητής</td><td>남,복,대</td><td>제자들을</td></tr><tr><td>αὐτοῦ</td><td>αὐτός</td><td>3인,남,단,속</td><td>그의</td></tr><tr><td>εἰς τὴν βασιλείαν</td><td>εἰς, ἡ, βασιλεία</td><td>전치사구</td><td>왕국으로</td></tr></tbody></table>`, translation: "주님께서 그의 제자들을 그 왕국으로 인도하실 것이다." },
+                { greek: "γνωσόμεθα καὶ τοὺς ἀγαθοὺς καὶ τοὺς πονηρούς.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>γνωσόμεθα</td><td>γινώσκω</td><td>미래,디포,직,1,복</td><td>알게 될 것이다</td></tr><tr><td>καὶ...καὶ...</td><td>καί</td><td>접속사</td><td>~와 ~ 둘 다</td></tr><tr><td>τοὺς ἀγαθοὺς</td><td>ὁ, ἀγαθός</td><td>남,복,대</td><td>선한 자들</td></tr><tr><td>τοὺς πονηρούς</td><td>ὁ, πονηρός</td><td>남,복,대</td><td>악한 자들을</td></tr></tbody></table>`, translation: "우리는 선한 자들과 악한 자들을 모두 알게 될 것이다." },
+                { greek: "λήμψεσθε τὰ πλοῖα ἐκ τῆς θαλάσσης.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>λήμψεσθε</td><td>λαμβάνω</td><td>미래,디포,직,2,복</td><td>취할 것이다</td></tr><tr><td>τὰ πλοῖଆ</td><td>τό, πλοῖον</td><td>중,복,대</td><td>그 배들을</td></tr><tr><td>ἐκ τῆς θαλάσσης</td><td>ἐκ, ἡ, θάλασσα</td><td>전치사구</td><td>바다로부터</td></tr></tbody></table>`, translation: "너희는 바다에서 그 배들을 취할 것이다." },
+                { greek: "λύσεις τοὺς δούλους.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>λύσεις</td><td>λύω</td><td>미래,능,직,2,단</td><td>풀어줄 것이다</td></tr><tr><td>τοὺς δούλους</td><td>ὁ, δοῦλος</td><td>남,복,대</td><td>그 종들을</td></tr></tbody></table>`, translation: "너는 그 종들을 풀어줄 것이다." },
+                { greek: "ἕξουσιν οἱ πονηροὶ οὐδὲ χαρὰν οὐδὲ εἰρήνην.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἕξουσιν</td><td>ἔχω</td><td>미래,능,직,3,복</td><td>가지지 못할 것이다</td></tr><tr><td>οἱ πονηροὶ</td><td>ὁ, πονηρός</td><td>남,복,주</td><td>악한 자들은</td></tr><tr><td>οὐδὲ...οὐδὲ...</td><td>οὐδέ</td><td>접속사</td><td>~도 ~도 아니다</td></tr><tr><td>χαρὰν</td><td>χαρά</td><td>여,단,대</td><td>기쁨도</td></tr><tr><td>εἰρήνην</td><td>εἰρήνη</td><td>여,단,대</td><td>평화도</td></tr></tbody></table>`, translation: "악한 자들은 기쁨도 평화도 가지지 못할 것이다." },
+                { greek: "ἐν ἐκείνῃ τῇ ὥρᾳ ἐλεύσεται ὁ υἱὸς τοῦ ἀνθρώπου σὺν τοῖς ἀγγέλοις αὐτοῦ.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἐν...ὥρᾳ</td><td>ἐν, ὥρα</td><td>전치사구</td><td>그 때에</td></tr><tr><td>ἐλεύσεται</td><td>ἔρχομαι</td><td>미래,디포,직,3,단</td><td>올 것이다</td></tr><tr><td>ὁ υἱὸς τοῦ ἀνθρώπου</td><td>ὁ, υἱός, ἄνθρωπος</td><td>주격구</td><td>인자가</td></tr><tr><td>σὺν...ἀγγέλοις</td><td>σύν, ὁ, ἄγγελος</td><td>전치사구</td><td>천사들과 함께</td></tr><tr><td>αὐτοῦ</td><td>αὐτός</td><td>3인,남,단,속</td><td>그의</td></tr></tbody></table>`, translation: "그 때에 인자가 그의 천사들과 함께 올 것이다." },
+                { greek: "ἁμαρτωλοί ἐστε, γενήσεσθε δὲ μαθηταὶ τοῦ κυρίου.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἁμαρτωλοί ἐστε</td><td>ἁμαρτωλός, εἰμί</td><td>남,복,주 / 현,직,2,복</td><td>너희는 죄인들이다</td></tr><tr><td>γενήσεσθε δὲ</td><td>γίνομαι, δέ</td><td>미래,디포,직,2,복</td><td>그러나 될 것이다</td></tr><tr><td>μαθηταὶ τοῦ κυρίου</td><td>μαθητής, ὁ, κύριος</td><td>남,복,주/남,단,속</td><td>주님의 제자들이</td></tr></tbody></table>`, translation: "너희는 죄인들이지만, 주님의 제자들이 될 것이다." },
+                { greek: "διώκουσιν οἱ πονηροὶ τοὺς προφήτας, ἀλλ' ἐν ταῖς ἡμέραις τοῦ υἱοῦ τοῦ ἀνθρώπου οὐκέτι διώξουσιν αὐτούς.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>διώκουσιν</td><td>διώκω</td><td>현,능,직,3,복</td><td>박해한다</td></tr><tr><td>οἱ πονηροὶ</td><td>ὁ, πονηρός</td><td>남,복,주</td><td>악한 자들이</td></tr><tr><td>τοὺς προφήτας</td><td>ὁ, προφήτης</td><td>남,복,대</td><td>예언자들을</td></tr><tr><td>ἀλλ'</td><td>ἀλλά</td><td>접속사</td><td>그러나</td></tr><tr><td>ἐν...ἀνθρώπου</td><td>전치사구</td><td>인자의 날에는</td><td></td></tr><tr><td>οὐκέτι διώξουσιν</td><td>οὐκέτι, διώκω</td><td>부사,동사</td><td>더 이상 박해않을것이다</td></tr><tr><td>αὐτούς</td><td>αὐτός</td><td>3인,남,복,대</td><td>그들을</td></tr></tbody></table>`, translation: "악한 자들이 예언자들을 박해하지만, 인자의 날에는 더 이상 그들을 박해하지 않을 것이다." },
+                { greek: "προσεύξῃ τῷ θεῷ σου καὶ δοξάσεις αὐτόν.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>προσεύξῃ</td><td>προσεύχομαι</td><td>미래,디포,직,2,단</td><td>기도할 것이다</td></tr><tr><td>τῷ θεῷ σου</td><td>ὁ, θεός, σύ</td><td>여격구</td><td>너의 하나님께</td></tr><tr><td>καὶ</td><td>καί</td><td>접속사</td><td>그리고</td></tr><tr><td>δοξάσεις</td><td>δοξάζω</td><td>미래,능,직,2,단</td><td>영광 돌릴 것이다</td></tr><tr><td>αὐτόν</td><td>αὐτός</td><td>3인,남,단,대</td><td>그에게</td></tr></tbody></table>`, translation: "너는 너의 하나님께 기도하고 그분께 영광을 돌릴 것이다." },
+                { greek: "τότε γνώσεσθε ὅτι αὐτός ἐστιν ὁ κύριος.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>τότε</td><td>τότε</td><td>부사</td><td>그때</td></tr><tr><td>γνώσεσθε</td><td>γινώσκω</td><td>미래,디포,직,2,복</td><td>너희는 알 것이다</td></tr><tr><td>ὅτι</td><td>ὅτι</td><td>접속사</td><td>~라는 것을</td></tr><tr><td>αὐτός ἐστιν</td><td>αὐτός, εἰμί</td><td>남,단,주 / 현,직,3,단</td><td>그 자신이 ~이다</td></tr><tr><td>ὁ κύριος</td><td>ὁ, κύριος</td><td>남,단,주</td><td>주님</td></tr></tbody></table>`, translation: "그때에 너희는 그 자신이 주님이시라는 것을 알게 될 것이다." },
+                // 14과
+                { greek: "ἀπέλυσεν ὁ κύριος τὸν δοῦλον αὐτοῦ, ὁ δὲ δοῦλος οὐκ ἀπέλυσε τὸν ἄλλον.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἀπέλυσεν</td><td>ἀπολύω</td><td>1부정과거,능,직,3,단</td><td>놓아주었다</td></tr><tr><td>ὁ κύριος</td><td>ὁ, κύριος</td><td>남,단,주</td><td>주님께서</td></tr><tr><td>τὸν δοῦλον</td><td>ὁ, δοῦλος</td><td>남,단,대</td><td>그 종을</td></tr><tr><td>αὐτοῦ</td><td>αὐτός</td><td>3인,남,단,속</td><td>그의</td></tr><tr><td>ὁ δὲ δοῦλος</td><td>ὁ, δέ, δοῦλος</td><td>구</td><td>그러나 그 종은</td></tr><tr><td>οὐκ ἀπέλυσε</td><td>οὐ, ἀπολύω</td><td>부정,동사</td><td>놓아주지 않았다</td></tr><tr><td>τὸν ἄλλον</td><td>ὁ, ἄλλος</td><td>남,단,대</td><td>다른 사람을</td></tr></tbody></table>`, translation: "주님께서 그의 종을 놓아주셨으나, 그 종은 다른 사람을 놓아주지 않았다." },
+                { greek: "ἤδη ἐπέστρεψαν οὗτοι πρὸς τὸν κύριον, ἐκεῖνοι δὲ ἐπιστρέψουσιν ἐν ταῖς ἡμέραις ταῖς κακαῖς.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἤδη ἐπέστρεψαν</td><td>ἤδη, ἐπιστρέφω</td><td>부사,동사</td><td>이미 돌아왔다</td></tr><tr><td>οὗτοι</td><td>οὗτος</td><td>남,복,주</td><td>이 사람들은</td></tr><tr><td>πρὸς τὸν κύριον</td><td>πρός, ὁ, κύριος</td><td>전치사구</td><td>주님께로</td></tr><tr><td>ἐκεῖνοι δὲ</td><td>ἐκεῖνος, δέ</td><td>대명사,접속사</td><td>그러나 저 사람들은</td></tr><tr><td>ἐπιστρέψουσιν</td><td>ἐπιστρέφω</td><td>미래,능,직,3,복</td><td>돌아올 것이다</td></tr><tr><td>ἐν...κακαῖς</td><td>ἐν, ἡ, ἡμέρα, κακός</td><td>전치사구</td><td>악한 날에</td></tr></tbody></table>`, translation: "이 사람들은 이미 주님께로 돌아왔지만, 저 사람들은 악한 날에 돌아올 것이다." },
+                { greek: "ἐπιστεύσαμεν εἰς τὸν κύριον καὶ σώσει ἡμᾶς.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἐπιστεύσαμεν</td><td>πιστεύω</td><td>1부정과거,능,직,1,복</td><td>우리는 믿었다</td></tr><tr><td>εἰς τὸν κύριον</td><td>εἰς, ὁ, κύριος</td><td>전치사구</td><td>주님을</td></tr><tr><td>καὶ</td><td>καί</td><td>접속사</td><td>그리고</td></tr><tr><td>σώσει</td><td>σῴζω</td><td>미래,능,직,3,단</td><td>그가 구원할 것이다</td></tr><tr><td>ἡμᾶς</td><td>ἐγώ</td><td>1인,복,대</td><td>우리를</td></tr></tbody></table>`, translation: "우리는 주님을 믿었으며, 그분께서 우리를 구원하실 것이다." },
+                { greek: "καὶ ἐπίστευσας εἰς αὐτὸν καὶ πιστεύσεις.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>καὶ ἐπίστευσας</td><td>καί, πιστεύω</td><td>접속사,동사</td><td>그리고 너는 믿었다</td></tr><tr><td>εἰς αὐτὸν</td><td>εἰς, αὐτός</td><td>전치사구</td><td>그를</td></tr><tr><td>καὶ πιστεύσεις</td><td>καί, πιστεύω</td><td>접속사,동사</td><td>그리고 너는 믿을 것이다</td></tr></tbody></table>`, translation: "너는 그를 믿었고, 또한 믿을 것이다." },
+                { greek: "ὑπέστρεψας πρὸς τὸν κύριον καὶ ἐδέξατό σε εἰς τὴν ἐκκλησίαν αὐτοῦ.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ὑπέστρεψας</td><td>ὑποστρέφω</td><td>1부정과거,능,직,2,단</td><td>너는 돌아왔다</td></tr><tr><td>πρὸς τὸν κύριον</td><td>πρός, ὁ, κύριος</td><td>전치사구</td><td>주님께로</td></tr><tr><td>καὶ ἐδέξατο</td><td>καί, δέχομαι</td><td>접속사,동사</td><td>그리고 그가 영접했다</td></tr><tr><td>σε</td><td>σύ</td><td>2인,단,대</td><td>너를</td></tr><tr><td>εἰς...αὐτοῦ</td><td>εἰς, ἡ, ἐκκλησία, αὐτός</td><td>전치사구</td><td>그의 교회로</td></tr></tbody></table>`, translation: "네가 주님께로 돌아왔고, 그분께서 너를 그의 교회로 영접하셨다." },
+                { greek: "ἐν ἐκείναις ταῖς ἡμέραις ἐπορεύεσθε ἐν ταῖς ὁδοῖς ταῖς κακαῖς.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἐν...ἡμέραις</td><td>ἐν, ἐκεῖνος, ἡ, ἡμέρα</td><td>전치사구</td><td>저 날들에</td></tr><tr><td>ἐπορεύεσθε</td><td>πορεύομαι</td><td>미완,디포,직,2,복</td><td>너희는 가고 있었다</td></tr><tr><td>ἐν...κακαῖς</td><td>ἐν, ἡ, ὁδός, κακός</td><td>전치사구</td><td>악한 길들로</td></tr></tbody></table>`, translation: "저 날들에 너희는 악한 길들로 가고 있었다." },
+                { greek: "ἐπεστρέψατε πρὸς τὸν κύριον καὶ ἐθεράπευσεν ὑμᾶς.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἐπεστρέψατε</td><td>ἐπιστρέφω</td><td>1부정과거,능,직,2,복</td><td>너희는 돌아왔다</td></tr><tr><td>πρὸς τὸν κύριον</td><td>πρός, ὁ, κύριος</td><td>전치사구</td><td>주님께로</td></tr><tr><td>καὶ ἐθεράπευσεν</td><td>καί, θεραπεύω</td><td>접속사,동사</td><td>그리고 그가 고치셨다</td></tr><tr><td>ὑμᾶς</td><td>σύ</td><td>2인,복,대</td><td>너희를</td></tr></tbody></table>`, translation: "너희가 주님께 돌아왔고, 그분께서 너희를 고치셨다." },
+                { greek: "ἐκεῖνοι πονηροί, ἀλλ᾽ ἡμεῖς ἐπείσαμεν αὐτούς.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἐκεῖνοι πονηροί</td><td>ἐκεῖνος, πονηρός</td><td>형용사구</td><td>저들은 악하다</td></tr><tr><td>ἀλλ᾽ ἡμεῖς</td><td>ἀλλά, ἐγώ</td><td>접속사,대명사</td><td>그러나 우리는</td></tr><tr><td>ἐπείσαμεν</td><td>πείθω</td><td>1부정과거,능,직,1,복</td><td>설득했다</td></tr><tr><td>αὐτούς</td><td>αὐτός</td><td>3인,남,복,대</td><td>그들을</td></tr></tbody></table>`, translation: "저들은 악하지만, 우리는 그들을 설득했다." },
+                { greek: "ἡτοίμασα ὑμῖν τόπον ἐν τῷ οὐρανῷ.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἡτοίμασα</td><td>ἑτοιμάζω</td><td>1부정과거,능,직,1,단</td><td>나는 준비했다</td></tr><tr><td>ὑμῖν</td><td>σύ</td><td>2인,복,여</td><td>너희를 위하여</td></tr><tr><td>τόπον</td><td>τόπος</td><td>남,단,대</td><td>장소를</td></tr><tr><td>ἐν τῷ οὐρανῷ</td><td>ἐν, ὁ, οὐρανός</td><td>전치사구</td><td>하늘에</td></tr></tbody></table>`, translation: "나는 하늘에 너희를 위한 자리를 마련하였다." },
+                { greek: "ἐδεξάμην σε εἰς τὸν οἶκόν μου, ἀλλ' οὗτοι οἱ πονηροὶ οὐκ ἐδέξαντο.", analysis: `<table class="inflection-table"><thead><tr><th>단어</th><th>원형</th><th>문법</th><th>직역</th></tr></thead><tbody><tr><td>ἐδεξάμην</td><td>δέχομαι</td><td>1부정과거,디포,직,1,단</td><td>나는 영접했다</td></tr><tr><td>σε</td><td>σύ</td><td>2인,단,대</td><td>너를</td></tr><tr><td>εἰς τὸν οἶκόν μου</td><td>εἰς, ὁ, οἶκος, ἐγώ</td><td>전치사구</td><td>나의 집으로</td></tr><tr><td>ἀλλ'</td><td>ἀλλά</td><td>접속사</td><td>그러나</td></tr><tr><td>οὗτοι οἱ πονηροὶ</td><td>οὗτος, ὁ, πονηρός</td><td>형용사구</td><td>이 악한 자들은</td></tr><tr><td>οὐκ ἐδέξαντο</td><td>οὐ, δέχομαι</td><td>부정,동사</td><td>영접하지 않았다</td></tr></tbody></table>`, translation: "나는 너를 나의 집으로 영접했으나, 이 악한 자들은 영접하지 않았다." }
+            ]
+        };
+
+        // --- 앱 상태 관리 ---
+        let currentMode = '';
+        let currentData = [];
+        let currentIndex = 0;
+
+        // --- DOM 요소 ---
+        const homeScreen = document.getElementById('home-screen');
+        const studyScreen = document.getElementById('study-screen');
+        const studyTitle = document.getElementById('study-title');
+        const flashcard = document.getElementById('flashcard');
+        const cardFront = document.getElementById('card-front');
+        const cardBack = document.getElementById('card-back');
+        const progress = document.getElementById('progress');
+        const flipBtn = document.getElementById('flip-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const prevBtn = document.getElementById('prev-btn');
+        const homeBtn = document.getElementById('home-btn');
+
+        // --- 함수 ---
+        function shuffle(array) {
+            let currentIndex = array.length,  randomIndex;
+            while (currentIndex != 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        }
+
+        function startStudy(mode) {
+            currentMode = mode;
+            currentIndex = 0;
+            
+            if (mode === 'vocabulary') {
+                currentData = shuffle([...db.vocabulary]);
+                studyTitle.textContent = '단어 암기';
+            } else if (mode === 'inflections') {
+                currentData = [...db.inflections]; // 순서 유지
+                studyTitle.textContent = '변화표 암기';
+            } else if (mode === 'sentences') {
+                currentData = shuffle([...db.sentences]);
+                studyTitle.textContent = '문장 분석';
+            }
+
+            loadCard();
+            homeScreen.classList.add('hidden', 'opacity-0');
+            studyScreen.classList.remove('hidden');
+            studyScreen.classList.add('opacity-100');
+        }
+
+        function loadCard() {
+            flashcard.classList.remove('is-flipped');
+            const item = currentData[currentIndex];
+
+            if (!item) return;
+
+            cardBack.scrollTop = 0; 
+
+            // 모드에 따라 카드 뒷면의 정렬을 동적으로 변경합니다.
+            if (currentMode === 'sentences') {
+                cardBack.style.alignItems = 'flex-start'; // 문장 분석: 위쪽 정렬
+            } else {
+                cardBack.style.alignItems = 'center'; // 단어, 변화표: 중앙 정렬
+            }
+
+            if (currentMode === 'vocabulary') {
+                cardFront.innerHTML = `<div class="greek-text text-center">${item.greek}</div>`;
+                cardBack.innerHTML = `<div class="korean-text text-center text-2xl">${item.korean}</div>`;
+            } else if (currentMode === 'inflections') {
+                cardFront.innerHTML = `<div class="korean-text text-center text-2xl font-bold">${item.title}</div>`;
+                cardBack.innerHTML = `<div class="p-2 w-full h-full">${item.content}</div>`;
+            } else if (currentMode === 'sentences') {
+                cardFront.innerHTML = `<div class="greek-text text-center px-4">${item.greek}</div>`;
+                cardBack.innerHTML = `
+                    <div class="p-2 md:p-4 text-left w-full h-full">
+                        <h4 class="text-md md:text-lg font-bold mb-2 text-slate-700">문장 분석</h4>
+                        ${item.analysis} 
+                        <h4 class="text-md md:text-lg font-bold mt-4 mb-2 text-slate-700">최종 해석</h4>
+                        <p class="korean-text text-base">${item.translation}</p>
+                    </div>`;
+            }
+            
+            updateProgress();
+        }
+
+        function updateProgress() {
+            progress.textContent = `${currentIndex + 1} / ${currentData.length}`;
+        }
+        
+        function flipCard() {
+            flashcard.classList.toggle('is-flipped');
+        }
+
+        function nextCard() {
+            if (currentIndex < currentData.length - 1) {
+                currentIndex++;
+                loadCard();
+            }
+        }
+
+        function prevCard() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                loadCard();
+            }
+        }
+
+        function goHome() {
+            studyScreen.classList.add('hidden');
+            studyScreen.classList.remove('opacity-100');
+            homeScreen.classList.remove('hidden', 'opacity-0');
+        }
+
+        // --- 이벤트 리스너 ---
+        flipBtn.addEventListener('click', flipCard);
+        nextBtn.addEventListener('click', nextCard);
+        prevBtn.addEventListener('click', prevCard);
+        homeBtn.addEventListener('click', goHome);
+        
+        document.addEventListener('keydown', (e) => {
+            if (!studyScreen.classList.contains('hidden')) {
+                if (e.key === 'ArrowLeft') prevCard();
+                if (e.key === 'ArrowRight') nextCard();
+                if (e.key === ' ' || e.key === 'Enter') {
+                    e.preventDefault();
+                    flipCard();
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>
