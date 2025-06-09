@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>헬라어 기말고사 플래시카드</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Sans:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', 'Noto Sans', sans-serif;
+        }
+        .flashcard-container {
+            perspective: 1000px;
+        }
+        .flashcard {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+        .flashcard.is-flipped {
+            transform: rotateY(180deg);
+        }
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .card-front {
+            background-color: white;
+        }
+        .card-back {
+            background-color: #f0f9ff; /* light-blue-50 */
+            transform: rotateY(180deg);
+        }
+        .greek-text {
+            font-family: 'Noto Sans', sans-serif;
+            font-size: 2.25rem; /* text-4xl */
+        }
+        .korean-text {
+            font-size: 1.5rem; /* text-2xl */
+        }
+        .inflection-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .inflection-table th, .inflection-table td {
+            border: 1px solid #9ca3af; /* gray-400 */
+            padding: 0.5rem;
+            text-align: center;
+        }
+        .inflection-table th {
+            background-color: #e0f2fe; /* light-blue-100 */
+        }
+        #home-screen, #study-screen {
+            transition: opacity 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen">
+
+    <div id="app" class="w-full max-w-2xl mx-auto p-4">
+
+        <!-- 홈 화면 -->
+        <div id="home-screen">
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-bold text-slate-800">헬라어 기말고사 준비</h1>
+                <p class="text-slate-600 mt-2">학습할 유형을 선택하세요.</p>
+            </div>
+            <div class="grid grid-cols-1 gap-4">
+                <button onclick="startStudy('vocabulary')" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                    단어 암기 (10-14과)
+                </button>
+                <button onclick="startStudy('inflections')" class="bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                    변화표 암기
+                </button>
+                <button onclick="startStudy('sentences')" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                    문장 분석 (9-14과)
+                </button>
+            </div>
+        </div>
+
+        <!-- 학습 화면 -->
+        <div id="study-screen" class="hidden">
+            <h2 id="study-title" class="text-2xl font-bold text-center text-slate-700 mb-4"></h2>
+            
+            <div class="flashcard-container w-full h-80 md:h-96">
+                <div id="flashcard" class="flashcard">
+                    <div id="card-front" class="card-face card-front"></div>
+                    <div id="card-back" class="card-face card-back"></div>
+                </div>
+            </div>
+
+            <div id="progress" class="text-center text-slate-500 my-4"></div>
+
+            <div class="flex justify-center items-center space-x-2 mt-4">
+                <button id="prev-btn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition">-</button>
+                <button id="flip-btn" class="bg-yellow-400 hover:bg-yellow-500 text-yellow-800 font-bold py-3 px-8 rounded-lg shadow-md transition">정답 확인</button>
+                <button id="next-btn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition">+</button>
+            </div>
+            
+            <div class="text-center mt-6">
+                <button id="home-btn" class="text-blue-600 hover:text-blue-800 transition">처음으로 돌아가기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 데이터베이스 ---
+        // 제공된 문서를 바탕으로 데이터를 구성합니다.
+        const db = {
+            vocabulary: [
+                { greek: "ἀλλά", korean: "(접) 그러나" },
+                { greek: "ἀκούω", korean: "(동) 내가 듣다" },
+                { greek: "ἁμαρτωλός", korean: "(명) 죄인" },
+                { greek: "ἀποκρίνομαι", korean: "(동) 내가 대답하다 (dep.)" },
+                { greek: "ἄρχω", korean: "(동) 내가 지배하다 (기본형)" },
+                { greek: "ἄρχομαι", korean: "(동) 내가 시작하다 (중간태)" },
+                { greek: "γίνομαι", korean: "(동) 내가 되다 (dep.)" },
+                { greek: "διέρχομαι", korean: "(동) 내가 거쳐 가다 (dep.)" },
+                { greek: "εἰσέρχομαι", korean: "(동) 내가 들어가다 (dep.)" },
+                { greek: "ἐξέρχομαι", korean: "(동) 내가 나가다 (dep.)" },
+                { greek: "ἔρχομαι", korean: "(동) 내가 가다, 오다 (dep.)" },
+                { greek: "ὅτι", korean: "(접) 한 바를, 왜냐하면" },
+                { greek: "οὐ", korean: "(부) 아니 (전접사)" },
+                { greek: "πορεύομαι", korean: "(동) 내가 가다 (dep.)" },
+                { greek: "σῴζω", korean: "(동) 내가 구원하다" },
+                { greek: "ὑπό", korean: "(전) (+소유격) ~로 말미암아, (+목적격) 아래" },
+                { greek: "αἴρω", korean: "(동) 내가 들어올리다, 치워버리다" },
+                { greek: "ἀναβαίνω", korean: "(동) 내가 올라가다" },
+                { greek: "ἀποθνήσκω", korean: "(동) 내가 죽다" },
+                { greek: "ἀποκτείνω", korean: "(동) 내가 죽이다" },
+                { greek: "ἀποστέλλω", korean: "(동) 내가 보내다 (사명을 주어)" },
+                { greek: "ἄρτος", korean: "(명) 떡, 떡 조각" },
+                { greek: "βαίνω", korean: "(동) 내가 가다" },
+                { greek: "ἐσθίω", korean: "(동) 내가 먹다" },
+                { greek: "κατά", korean: "(전) ~에 대하여, 대적하여" },
+                { greek: "καταβαίνω", korean: "(동) 내가 내려가다" },
+                { greek: "μέν...δέ", korean: "(부) 한편...또 한편" },
+                { greek: "οὐκέτι", korean: "(부) 이제는 아니, 더 이상 아니다" },
+                { greek: "παρά", korean: "(전) ~부터, 곁에, 나란히" },
+                { greek: "παραλαμβάνω", korean: "(동) 내가 받다, 이으다, 데려가다" },
+                { greek: "σύν", korean: "(전) 함께" },
+                { greek: "συνάγω", korean: "(동) 내가 모으다, 모이다" },
+                { greek: "τότε", korean: "(부) 그 때에" },
+                { greek: "ἀπέρχομαι", korean: "(동) 내가 가 버리다 (dep.)" },
+                { greek: "βίβλος", korean: "(명) 책" },
+                { greek: "δαιμόνιον", korean: "(명) 귀신" },
+                { greek: "δέχομαι", korean: "(동) 내가 받다, 영접하다 (dep.)" },
+                { greek: "ἐκπορεύομαι", korean: "(동) 내가 나가다 (dep.)" },
+                { greek: "ἔργον", korean: "(명) 일, 역사(work)" },
+                { greek: "ἔτι", korean: "(부) 아직, 여전히" },
+                { greek: "θάλασσα", korean: "(명) 호수, 바다" },
+                { greek: "καί", korean: "(접) 그리고, 역시, 까지도" },
+                { greek: "κατέρχομαι", korean: "(동) 내가 내려가다 (dep.)" },
+                { greek: "οὐδέ", korean: "(접) 그리고 아니, ~도 아니, ~까지도 아니" },
+                { greek: "οὔπω", korean: "(부) 아직도 아니" },
+                { greek: "περί", korean: "(전) (+소유격) ~에 대하여 / (+목적격) 주위에, 둘레에" },
+                { greek: "πλοῖον", korean: "(명) 배" },
+                { greek: "συνέρχομαι", korean: "(동) 내가 같이 오다 (dep.)" },
+                { greek: "ὑπέρ", korean: "(전) (+소유격) 위하여, 대신하여 / (+목적격) 위에" },
+                { greek: "ἀναβλέπω, ἀναβλέψω", korean: "(동) 내가 쳐다보다, 시력을 회복하다" },
+                { greek: "βήσομαι", korean: "(동) 내가 갈 것이다 (βαίνω의 미래, dep.)" },
+                { greek: "γενήσομαι", korean: "(동) 내가 될 것이다 (γίνομαι의 미래, dep.)" },
+                { greek: "γνώσομαι", korean: "(동) 내가 알 것이다 (γινώσκω의 미래, dep.)" },
+                { greek: "διδάξω", korean: "(동) 내가 가르칠 것이다 (διδάσκω의 미래)" },
+                { greek: "διώκω, διώξω", korean: "(동) 내가 뒤쫓다, 박해하다" },
+                { greek: "δοξάζω, δοξάσω", korean: "(동) 내가 영광돌리다" },
+                { greek: "ἐλεύσομαι", korean: "(동) 내가 올 것이다 (ἔρχομαι의 미래, dep.)" },
+                { greek: "ἕξω", korean: "(동) 내가 소유할 것이다 (ἔχω의 미래)" },
+                { greek: "κηρύσσω, κηρύξω", korean: "(동) 내가 선포하다, 전파하다, 설교하다" },
+                { greek: "λήμψομαι", korean: "(동) 내가 취할 것이다 (λαμβάνω의 미래, dep.)" },
+                { greek: "προσεύχομαι, προσεύξομαι", korean: "(동) 내가 기도하다 (dep.)" },
+                { greek: "τυφλός, ὁ", korean: "(명) 소경" },
+                { greek: "ἀπολύω, ἀπολύσω, ἀπέλυσα", korean: "(동) 내가 놓아주다, 해고하다, 해산시키다" },
+                { greek: "ἐκήρυξα", korean: "(동) 내가 전파하였다, 선포하였다 (κηρύσσω의 부정과거)" },
+                { greek: "ἐπιστρέφω, ἐπιστρέψω, ἐπέστρεψα", korean: "(동) 내가 돌이키다, 돌아가다" },
+                { greek: "ἑτοιμάζω, ἑτοιμάσω, ἡτοίμασα", korean: "(동) 내가 준비하다, 예비하다" },
+                { greek: "ἤδη", korean: "(부) 이미, 벌써" },
+                { greek: "θαυμάζω, θαυμάσω, ἐθαύμασα", korean: "(동) 내가 이상하게 여기다, 놀라다" },
+                { greek: "θεραπεύω, θεραπεύσω, ἐθεράπευσα", korean: "(동) 내가 고치다, 낫게하다" },
+                { greek: "πείθω, πείσω, ἔπεισα", korean: "(동) 내가 설복시키다, 믿게하다" },
+                { greek: "πιστεύω, πιστεύσω, ἐπίστευσα", korean: "(동) 내가 믿다" },
+                { greek: "ὑποστρέφω, ὑποστρέψω, ὑπέστρεψα", korean: "(동) 내가 돌아서다, 돌아가다" }
+            ],
+            inflections: [
+                { title: '현재 능동태 직설법 (λύω)', content: '<table class="inflection-table"><thead><tr><th></th><th>단수</th><th>복수</th></tr></thead><tbody><tr><th>1인칭</th><td>λύω</td><td>λύομεν</td></tr><tr><th>2인칭</th><td>λύεις</td><td>λύετε</td></tr><tr><th>3인칭</th><td>λύει</td><td>λύουσι(ν)</td></tr></tbody></table>' },
+                { title: '헬라어 정관사의 변화', content: '<table class="inflection-table"><thead><tr><th></th><th colspan="3">단수</th><th colspan="3">복수</th></tr><tr><th></th><th>남성</th><th>여성</th><th>중성</th><th>남성</th><th>여성</th><th>중성</th></tr></thead><tbody><tr><td>주격</td><td>ὁ</td><td>ἡ</td><td>τό</td><td>οἱ</td><td>αἱ</td><td>τά</td></tr><tr><td>소유격</td><td>τοῦ</td><td>τῆς</td><td>τοῦ</td><td>τῶν</td><td>τῶν</td><td>τῶν</td></tr><tr><td>여격</td><td>τῷ</td><td>τῇ</td><td>τῷ</td><td>τοῖς</td><td>ταῖς</td><td>τοῖς</td></tr><tr><td>목적격</td><td>τόν</td><td>τήν</td><td>τό</td><td>τούς</td><td>τάς</td><td>τά</td></tr></tbody></table>' },
+                { title: '제1부정과거 능동태 직설법 (λύω)', content: '<table class="inflection-table"><thead><tr><th>인칭</th><th>단수</th><th>복수</th></tr></thead><tbody><tr><th>1인칭</th><td>ἔλυσα</td><td>ἐλύσαμεν</td></tr><tr><th>2인칭</th><td>ἔλυσας</td><td>ἐλύσατε</td></tr><tr><th>3인칭</th><td>ἔλυσε(ν)</td><td>ἔλυσαν</td></tr></tbody></table>' },
+                { title: '제1부정과거 중간태 직설법 (λύω)', content: '<table class="inflection-table"><thead><tr><th>인칭</th><th>단수</th><th>복수</th></tr></thead><tbody><tr><th>1인칭</th><td>ἐλυσάμην</td><td>ἐλυσάμεθα</td></tr><tr><th>2인칭</th><td>ἐλύσω</td><td>ἐλύσασθε</td></tr><tr><th>3인칭</th><td>ἐλύσατο</td><td>ἐλύσαντο</td></tr></tbody></table>' }
+            ],
+            sentences: [
+                "οὗτοι οἱ διδάσκαλοι κρίνουσιν αὐτὸν τὸν ἀπόστολον.", "ὁ δὲ αὐτὸς διδάσκαλος ἔχει τὴν αὐτὴν χαρὰν ἐν τῇ καρδίᾳ αὐτοῦ.", "νῦν λαμβάνω αὐτὸς τὸ αὐτὸ εὐαγγέλιον ἀπὸ τοῦ κυρίου μου.", "οὗτος βλέπει ἐκεῖνον καὶ κρίνει αὐτόν.", "μετὰ ταῦτα ἔχετε αὐτοὶ τὴν ἀγάπην τοῦ κυρίου ἐν ταῖς καρδίαις ὑμῶν.", "οὗτοι ἔχουσι χαράν, ἐκεῖνοι δὲ ἔχουσιν ἁμαρτίαν.", "αὕτη δέ ἐστιν φωνὴ τοῦ κυρίου αὐτοῦ.", "οὕτως γινώσκομεν τοῦτον καὶ βλέπομεν τὸ πρόσωπον αὐτοῦ.", "λαμβάνομεν ταῦτα τὰ δῶρα ἀπὸ τοῦ αὐτοῦ καὶ βλέπομεν αὐτόν.", "αὐτὸς βαπτίζεις ἐκεῖνον καὶ εἰ ἀδελφὸς αὐτοῦ.",
+                "λύονται οὗτοι οἱ δοῦλοι ὑπὸ τοῦ κυρίου.", "τῷ λόγῳ τοῦ κυρίου ἀγάμεθα εἰς τὴν ἐκκλησίαν τοῦ θεοῦ.", "οὐκ ἀκούετε τῆς φωνῆς τοῦ προφήτου, ἀλλ' ἐξέρχεσθε ἐκ τοῦ οἴκου αὐτοῦ.", "τῷ λόγῳ αὐτοῦ τοῦ κυρίου γίνεσθε μαθηταὶ αὐτοῦ.", "ἐκεῖνοι οἱ ἀγαθοὶ διδάσκαλοι οὐκ εἰσέρχονται εἰς τοὺς οἴκους τῶν ἁμαρτωλῶν.", "οὐ βαπτίζονται οἱ ἁμαρτωλοὶ ὑπὸ τῶν ἀποστόλων, ἀλλ' ἐξέρχονται ἐκ τούτων τῶν οἴκων πρὸς ἄλλους διδασκάλους.", "λέγετε ἐκείνοις τοις άμαρτωλοις ὅτι σῴζεσθε ὑπὸ τοῦ θεοῦ ἀπὸ τῶν ἁμαρτιῶν ὑμῶν.", "ἄρχει αὐτὸς ὁ θεὸς τῆς βασιλείας αὐτοῦ.", "εἰρήνην ἔχει ἡ ἐκκλησία, ὅτι σῴζεται ὑπὸ τοῦ κυρίου αὐτῆς.", "οὐκ ἀποκρινόμεθα τῷ ἀποστόλῷ ὅτι οὐ γινώσκομεν αὐτόν.",
+                "ἠκοῦομεν τῆς φωνῆς αὐτοῦ ἐν ἐκείναις ταῖς ἡμέραις, νῦν δὲ οὐκέτι ἀκούομεν αὐτῆς.", "ὁ δὲ μαθητὴς τοῦ κυρίου ἔλεγε παραβολὴν τοῖς ἀδελφοῖς αὐτοῦ.", "ἀπέκτεινον οἱ δοῦλοι τὰ τέκνα σὺν τοῖς τέκνα σὺν τοῖς μαθηταῖς.", "τότε μὲν κατέβαινον εἰς τὸν οἶκον, νῦν δὲ οὐκέτι καταβαίνω.", "παρελαμβάνετε τὸν αρτον παρὰ τῶν δούλων καὶ ἠσθίετε αὐτόν.", "διὰ τὴν ἀλήθειαν ἀπέθνησκον οἱ μαθηταὶ ἐν ταῖς ἡμέραις ἐκείναις.", "συνῆγεν οὗτος ὁ ἀπόστολος εἰς τὴν ἐκκλησίαν τοὺς μαθητὰς τοῦ κυρίου ἡμῶν.", "νῦν μὲν διδασκόμεθα ὑπὸ τῶν ἀποστόλων, τότε δὲ ἐδιδάσκομεν ἡμεῖς τὴν ἐκκλησίαν.", "ὁ κύριος ἡμῶν ῆρε τὰς ἁμαρτίας ἡμῶν.", "τότε μὲν ἀνέβαινον εἰς τὸ ἱερόν, νῦν δὲ οὐκέτι ἀναβαίνουσιν.",
+                "ἐγράφοντο οὗτοι οἱ λόγοι ἐν βιβλίῳ.", "ἐδιδάσκομην ὑπ' αὐτοῦ ἐκ τῶν βιβλίων τῶν προφητῶν.", "ἐν ἐκείναις ταῖς ἡμέραις καὶ ἐδιδασκόμεθα ὑπ' αὐτοῦ καὶ ἐδιδάσκομεν τοὺς ἄλλους, ἀλλὰ νῦν οὐδὲ διδασκόμεθα οὐδὲ διδάσκομεν.", "ἀπήρχοντο οἱ ἁμαρτωλοὶ πρὸς τὴν θάλασσαν.", "ἐξεπορεύετο πρὸς αὐτὸν ἡ ἐκκλησία, ἀλλὰ νῦν οὐκέτι ἐπορεύεται.", "οὕτω βλέπομεν τὸν κύριον ἐν τῇ δόξῃ αὐτοῦ, ἀλλὰ ἐδιδασκόμεθα ὑπ' αὐτοῦ καὶ ἐν ταῖς ἡμέραις ταῖς κακαῖς.", "ἐλέγετο ἐν τῷ ἱερῷ καλὸς λόγος περὶ τούτου τοῦ ἀποστόλου.", "περὶ αὐτὸν ἐβλέπετο δόξα αὐτοῦ.", "ἐφέρετο τὰ δῶρα καὶ πρὸς τοὺς πονηρούς.", "ἐδέχου τὰ βιβλία ἀπὸ τῶν προφητῶν.",
+                "ἄξει ὁ κύριος τοὺς μαθητὰς αὐτοῦ εἰς τὴν βασιλείαν.", "γνωσόμεθα καὶ τοὺς ἀγαθοὺς καὶ τοὺς πονηρούς.", "λήμψεσθε τὰ πλοῖα ἐκ τῆς θαλάσσης.", "λύσεις τοὺς δούλους.", "ἕξουσιν οἱ πονηροὶ οὐδὲ χαρὰν οὐδὲ εἰρήνην.", "ἐν ἐκείνῃ τῇ ὥρᾳ ἐλεύσεται ὁ υἱὸς τοῦ ἀνθρώπου σὺν τοῖς ἀγγέλοις αὐτοῦ.", "ἁμαρτωλοί ἐστέ, γενήσεσθε δὲ μαθηταὶ τοῦ κυρίου.", "διώκουσιν οἱ πονηροὶ τοὺς προφήτας, ἀλλ' ἐν ταῖς ἡμέραις τοῦ υἱοῦ τοῦ ἀνθρώπου οὐκέτι διώξουσιν αὐτούς.", "προσεύξῃ τῷ θεῷ σου καὶ δοξάσεις αὐτόν.", "τότε γνώσεσθε ὅτι αὐτός ἐστιν ὁ κύριος.",
+                "ἀπέλυσεν ὁ κύριος τὸν δοῦλον αὐτοῦ, ὁ δὲ δοῦλος οὐκ ἀπέλυσε τὸν ἄλλον.", "ἤδη ἐπέστρεψαν οὗτοι πρὸς τὸν κύριον, ἐκεῖνοι δὲ ἐπιστρέψουσιν ἐν ταῖς ἡμέραις ταῖς κακαῖς.", "ἐπιστεύσαμεν εἰς τὸν κύριον καὶ σώσει ἡμᾶς.", "καὶ ἐπίστευσας εἰς αὐτὸν καὶ πιστεύσεις.", "ὑπέστρεψας πρὸς τὸν κύριον καὶ ἐδέξατό σε εἰς τὴν ἐκκλησίαν αὐτοῦ.", "ἐν ἐκείναις ταῖς ἡμέραις ἐπορεύεσθε ἐν ταῖς ὁδοῖς ταῖς κακαῖς.", "ἐπεστρέψατε πρὸς τὸν κύριον καὶ ἐθεράπευσεν ὑμᾶς.", "ἐκεῖνοι πονηροί, ἀλλ᾽ ἡμεῖς ἐπείσαμεν αὐτούς.", "ἡτοίμασα ὑμῖν τόπον ἐν τῷ οὐρανῷ.", "ἐδεξάμην σε εἰς τὸν οἶκόν μου, άλλ' οὗτοι οἱ πονηροὶ οὐκ ἐδέξαντο."
+            ]
+        };
+
+        // --- 앱 상태 관리 ---
+        let currentMode = '';
+        let currentData = [];
+        let currentIndex = 0;
+
+        // --- DOM 요소 ---
+        const homeScreen = document.getElementById('home-screen');
+        const studyScreen = document.getElementById('study-screen');
+        const studyTitle = document.getElementById('study-title');
+        const flashcard = document.getElementById('flashcard');
+        const cardFront = document.getElementById('card-front');
+        const cardBack = document.getElementById('card-back');
+        const progress = document.getElementById('progress');
+        const flipBtn = document.getElementById('flip-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const prevBtn = document.getElementById('prev-btn');
+        const homeBtn = document.getElementById('home-btn');
+
+        // --- 함수 ---
+        
+        /**
+         * 데이터를 무작위로 섞는 함수 (Fisher-Yates shuffle)
+         * @param {Array} array 섞을 배열
+         * @returns {Array} 섞인 배열
+         */
+        function shuffle(array) {
+            let currentIndex = array.length,  randomIndex;
+            while (currentIndex != 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        }
+
+        /**
+         * 학습 시작 함수
+         * @param {string} mode 'vocabulary', 'inflections', 'sentences'
+         */
+        function startStudy(mode) {
+            currentMode = mode;
+            currentIndex = 0;
+            
+            // 모드에 따라 데이터 설정 및 셔플
+            if (mode === 'vocabulary') {
+                currentData = shuffle([...db.vocabulary]);
+                studyTitle.textContent = '단어 암기';
+            } else if (mode === 'inflections') {
+                currentData = db.inflections;
+                studyTitle.textContent = '변화표 암기';
+            } else if (mode === 'sentences') {
+                currentData = shuffle([...db.sentences]);
+                studyTitle.textContent = '문장 분석';
+            }
+
+            loadCard();
+            homeScreen.classList.add('hidden', 'opacity-0');
+            studyScreen.classList.remove('hidden');
+            studyScreen.classList.add('opacity-100');
+        }
+
+        /**
+         * 현재 인덱스에 맞는 카드를 로드하는 함수
+         */
+        function loadCard() {
+            flashcard.classList.remove('is-flipped');
+            const item = currentData[currentIndex];
+
+            if (!item) return;
+
+            // 모드에 따라 카드 앞/뒤 내용 설정
+            if (currentMode === 'vocabulary') {
+                cardFront.innerHTML = `<div class="greek-text text-center">${item.greek}</div>`;
+                cardBack.innerHTML = `<div class="korean-text text-center">${item.korean}</div>`;
+            } else if (currentMode === 'inflections') {
+                cardFront.innerHTML = `<div class="korean-text text-center font-bold">${item.title}</div>`;
+                cardBack.innerHTML = item.content;
+            } else if (currentMode === 'sentences') {
+                cardFront.innerHTML = `<div class="greek-text text-center text-xl md:text-2xl leading-relaxed">${item}</div>`;
+                cardBack.innerHTML = `<div class="text-center">
+                    <p class="korean-text font-bold mb-4">직접 문장을 분석하고 번역해 보세요.</p>
+                    <p class="greek-text text-center text-xl md:text-2xl leading-relaxed">${item}</p>
+                </div>`;
+            }
+            
+            updateProgress();
+        }
+
+        /**
+         * 진행 상황 텍스트를 업데이트하는 함수
+         */
+        function updateProgress() {
+            progress.textContent = `${currentIndex + 1} / ${currentData.length}`;
+        }
+        
+        /**
+         * 카드를 뒤집는 함수
+         */
+        function flipCard() {
+            flashcard.classList.toggle('is-flipped');
+        }
+
+        /**
+         * 다음 카드로 넘어가는 함수
+         */
+        function nextCard() {
+            if (currentIndex < currentData.length - 1) {
+                currentIndex++;
+                loadCard();
+            }
+        }
+
+        /**
+         * 이전 카드로 돌아가는 함수
+         */
+        function prevCard() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                loadCard();
+            }
+        }
+
+        /**
+         * 홈 화면으로 돌아가는 함수
+         */
+        function goHome() {
+            studyScreen.classList.add('hidden');
+            studyScreen.classList.remove('opacity-100');
+            homeScreen.classList.remove('hidden', 'opacity-0');
+        }
+
+        // --- 이벤트 리스너 ---
+        flipBtn.addEventListener('click', flipCard);
+        nextBtn.addEventListener('click', nextCard);
+        prevBtn.addEventListener('click', prevCard);
+        homeBtn.addEventListener('click', goHome);
+        
+        // 키보드 이벤트 추가 (좌/우 화살표, 스페이스바)
+        document.addEventListener('keydown', (e) => {
+            if (!studyScreen.classList.contains('hidden')) {
+                if (e.key === 'ArrowLeft') prevCard();
+                if (e.key === 'ArrowRight') nextCard();
+                if (e.key === ' ') {
+                    e.preventDefault(); // 스페이스바의 기본 동작(스크롤) 방지
+                    flipCard();
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>
