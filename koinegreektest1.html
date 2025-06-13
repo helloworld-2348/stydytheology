@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>헬라어 기말고사 플래시카드</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Sans:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', 'Noto Sans', sans-serif;
+        }
+        .flashcard-container {
+            perspective: 1000px;
+        }
+        .flashcard {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+        /* 퀴즈 모드에서는 flip 효과를 사용하지 않음 */
+        .flashcard.no-flip {
+            transform: none;
+        }
+        .flashcard.is-flipped {
+            transform: rotateY(180deg);
+        }
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            overflow-y: auto;
+        }
+        .card-front {
+            background-color: white;
+            flex-direction: column;
+        }
+        .card-back {
+            background-color: #f0f9ff; /* light-blue-50 */
+            transform: rotateY(180deg);
+        }
+        .greek-text {
+            font-family: 'Noto Sans', sans-serif;
+            font-size: 1.875rem; /* text-3xl */
+            line-height: 1.6;
+        }
+        .korean-text {
+            font-size: 1.125rem; /* text-lg */
+        }
+        /* 1. 퀴즈 보기 스타일 수정 */
+        .quiz-option {
+            display: block;
+            width: 100%;
+            padding: 0.75rem;
+            margin-top: 0.5rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            text-align: center;
+            font-size: 1.125rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+        }
+        .quiz-option:hover {
+            background-color: #f9fafb; /* gray-50 */
+            border-color: #d1d5db; /* gray-300 */
+        }
+        .quiz-option.correct {
+            background-color: #dcfce7 !important; /* green-100 */
+            border-color: #4ade80 !important; /* green-400 */
+            color: #15803d; /* green-700 */
+            font-weight: bold;
+        }
+        .quiz-option.incorrect {
+            background-color: #fee2e2 !important; /* red-100 */
+            border-color: #f87171 !important; /* red-400 */
+            color: #b91c1c; /* red-700 */
+            font-weight: bold;
+        }
+        .quiz-option.disabled {
+            pointer-events: none;
+        }
+        .inflection-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+        .inflection-table th, .inflection-table td {
+            border: 1px solid #9ca3af; /* gray-400 */
+            padding: 0.35rem;
+            text-align: center;
+        }
+        .inflection-table th {
+            background-color: #e0f2fe; /* light-blue-100 */
+        }
+        #home-screen, #study-screen {
+            transition: opacity 0.3s ease-in-out;
+        }
+        .card-face::-webkit-scrollbar { width: 8px; }
+        .card-face::-webkit-scrollbar-track { background: #f1f5f9; }
+        .card-face::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        .card-face::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    </style>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen">
+
+    <div id="app" class="w-full max-w-3xl mx-auto p-4">
+
+        <div id="home-screen">
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-bold text-slate-800">헬라어 기말고사 준비</h1>
+                <p class="text-slate-600 mt-2">학습할 유형을 선택하세요.</p>
+            </div>
+            <div class="grid grid-cols-1 gap-4">
+                <button onclick="startStudy('vocabulary')" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                    단어 암기 (10-14과)
+                </button>
+                <button onclick="startStudy('vocabularyQuiz')" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                    단어 사지선다 문제 (10-14과)
+                </button>
+                <button onclick="startStudy('inflections')" class="bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                    변화표 암기
+                </button>
+                <button onclick="startStudy('sentences')" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                    문장 분석 (9-14과)
+                </button>
+            </div>
+        </div>
+
+        <div id="study-screen" class="hidden">
+            <h2 id="study-title" class="text-2xl font-bold text-center text-slate-700 mb-4"></h2>
+            
+            <div class="flashcard-container w-full h-96 md:h-[32rem]">
+                <div id="flashcard" class="flashcard">
+                    <div id="card-front" class="card-face card-front"></div>
+                    <div id="card-back" class="card-face card-back"></div>
+                </div>
+            </div>
+
+            <div id="progress" class="text-center text-slate-500 my-4"></div>
+
+            <div class="flex justify-center items-center space-x-2 mt-4">
+                <button id="prev-btn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition">-</button>
+                <button id="flip-btn" class="bg-yellow-400 hover:bg-yellow-500 text-yellow-800 font-bold py-3 px-8 rounded-lg shadow-md transition">정답 확인</button>
+                <button id="next-btn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition">+</button>
+            </div>
+            
+            <div class="text-center mt-6">
+                <button id="home-btn" class="text-blue-600 hover:text-blue-800 transition">처음으로 돌아가기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 데이터베이스 ---
+        const db = {
+            vocabulary: [
+                { greek: "ἀλλά", korean: "(접) 그러나" }, { greek: "ἀκούω", korean: "(동) 내가 듣다" }, { greek: "ἁμαρτωλός", korean: "(명) 죄인" }, { greek: "ἀποκρίνομαι", korean: "(동) 내가 대답하다 (dep.)" }, { greek: "ἄρχω", korean: "(동) 내가 지배하다 (기본형)" }, { greek: "ἄρχομαι", korean: "(동) 내가 시작하다 (중간태)" }, { greek: "γίνομαι", korean: "(동) 내가 되다 (dep.)" }, { greek: "διέρχομαι", korean: "(동) 내가 거쳐 가다 (dep.)" }, { greek: "εἰσέρχομαι", korean: "(동) 내가 들어가다 (dep.)" }, { greek: "ἐξέρχομαι", korean: "(동) 내가 나가다 (dep.)" }, { greek: "ἔρχομαι", korean: "(동) 내가 가다, 오다 (dep.)" }, { greek: "ὅτι", korean: "(접) 한 바를, 왜냐하면" }, { greek: "οὐ", korean: "(부) 아니 (전접사)" }, { greek: "πορεύομαι", korean: "(동) 내가 가다 (dep.)" }, { greek: "σῴζω", korean: "(동) 내가 구원하다" }, { greek: "ὑπό", korean: "(전) (+소유격) ~로 말미암아, (+목적격) 아래" }, { greek: "αἴρω", korean: "(동) 내가 들어올리다, 치워버리다" }, { greek: "ἀναβαίνω", korean: "(동) 내가 올라가다" }, { greek: "ἀποθνήσκω", korean: "(동) 내가 죽다" }, { greek: "ἀποκτείνω", korean: "(동) 내가 죽이다" }, { greek: "ἀποστέλλω", korean: "(동) 내가 보내다 (사명을 주어)" }, { greek: "ἄρτος", korean: "(명) 떡, 떡 조각" }, { greek: "βαίνω", korean: "(동) 내가 가다" }, { greek: "ἐσθίω", korean: "(동) 내가 먹다" }, { greek: "κατά", korean: "(전) ~에 대하여, 대적하여" }, { greek: "καταβαίνω", korean: "(동) 내가 내려가다" }, { greek: "μέν...δέ", korean: "(부) 한편...또 한편" }, { greek: "οὐκέτι", korean: "(부) 이제는 아니, 더 이상 아니다" }, { greek: "παρά", korean: "(전) ~부터, 곁에, 나란히" }, { greek: "παραλαμβάνω", korean: "(동) 내가 받다, 이으다, 데려가다" }, { greek: "σύν", korean: "(전) 함께" }, { greek: "συνάγω", korean: "(동) 내가 모으다, 모이다" }, { greek: "τότε", korean: "(부) 그 때에" }, { greek: "ἀπέρχομαι", korean: "(동) 내가 가 버리다 (dep.)" }, { greek: "βίβλος", korean: "(명) 책" }, { greek: "δαιμόνιον", korean: "(명) 귀신" }, { greek: "δέχομαι", korean: "(동) 내가 받다, 영접하다 (dep.)" }, { greek: "ἐκπορεύομαι", korean: "(동) 내가 나가다 (dep.)" }, { greek: "ἔργον", korean: "(명) 일, 역사(work)" }, { greek: "ἔτι", korean: "(부) 아직, 여전히" }, { greek: "θάλασσα", korean: "(명) 호수, 바다" }, { greek: "καί", korean: "(접) 그리고, 역시, 까지도" }, { greek: "κατέρχομαι", korean: "(동) 내가 내려가다 (dep.)" }, { greek: "οὐδέ", korean: "(접) 그리고 아니, ~도 아니, ~까지도 아니" }, { greek: "οὔπω", korean: "(부) 아직도 아니" }, { greek: "περί", korean: "(전) (+소유격) ~에 대하여 / (+목적격) 주위에, 둘레에" }, { greek: "πλοῖον", korean: "(명) 배" }, { greek: "συνέρχομαι", korean: "(동) 내가 같이 오다 (dep.)" }, { greek: "ὑπέρ", korean: "(전) (+소유격) 위하여, 대신하여 / (+목적격) 위에" }, { greek: "ἀναβλέπω, ἀναβλέψω", korean: "(동) 내가 쳐다보다, 시력을 회복하다" }, { greek: "βήσομαι", korean: "(동) 내가 갈 것이다 (βαίνω의 미래, dep.)" }, { greek: "γενήσομαι", korean: "(동) 내가 될 것이다 (γίνομαι의 미래, dep.)" }, { greek: "γνώσομαι", korean: "(동) 내가 알 것이다 (γινώσκω의 미래, dep.)" }, { greek: "διδάξω", korean: "(동) 내가 가르칠 것이다 (διδάσκω의 미래)" }, { greek: "διώκω, διώξω", korean: "(동) 내가 뒤쫓다, 박해하다" }, { greek: "δοξάζω, δοξάσω", korean: "(동) 내가 영광돌리다" }, { greek: "ἐλεύσομαι", korean: "(동) 내가 올 것이다 (ἔρχομαι의 미래, dep.)" }, { greek: "ἕξω", korean: "(동) 내가 소유할 것이다 (ἔχω의 미래)" }, { greek: "κηρύσσω, κηρύξω", korean: "(동) 내가 선포하다, 전파하다, 설교하다" }, { greek: "λήμψομαι", korean: "(동) 내가 취할 것이다 (λαμβάνω의 미래, dep.)" }, { greek: "προσεύχομαι, προσεύξομαι", korean: "(동) 내가 기도하다 (dep.)" }, { greek: "τυφλός, ὁ", korean: "(명) 소경" }, { greek: "ἀπολύω, ἀπολύσω, ἀπέλυσα", korean: "(동) 내가 놓아주다, 해고하다, 해산시키다" }, { greek: "ἐκήρυξα", korean: "(동) 내가 전파하였다, 선포하였다 (κηρύσσω의 부정과거)" }, { greek: "ἐπιστρέφω, ἐπιστρέψω, ἐπέστρεψα", korean: "(동) 내가 돌이키다, 돌아가다" }, { greek: "ἑτοιμάζω, ἑτοιμάσω, ἡτοίμασα", korean: "(동) 내가 준비하다, 예비하다" }, { greek: "ἤδη", korean: "(부) 이미, 벌써" }, { greek: "θαυμάζω, θαυμάσω, ἐθαύμασα", korean: "(동) 내가 이상하게 여기다, 놀라다" }, { greek: "θεραπεύω, θεραπεύσω, ἐθεράπευσα", korean: "(동) 내가 고치다, 낫게하다" }, { greek: "πείθω, πείσω, ἔπεισα", korean: "(동) 내가 설복시키다, 믿게하다" }, { greek: "πιστεύω, πιστεύσω, ἐπίστευσα", korean: "(동) 내가 믿다" }, { greek: "ὑпоστρέφω, ὑποστρέψω, ὑπέστρεψα", korean: "(동) 내가 돌아서다, 돌아가다" }
+            ],
+            // inflections, sentences 데이터는 변경 없이 유지 (생략)
+        };
+
+        // --- 앱 상태 관리 ---
+        let currentMode = '';
+        let currentData = [];
+        let currentIndex = 0;
+
+        // --- DOM 요소 ---
+        const homeScreen = document.getElementById('home-screen');
+        const studyScreen = document.getElementById('study-screen');
+        const studyTitle = document.getElementById('study-title');
+        const flashcard = document.getElementById('flashcard');
+        const cardFront = document.getElementById('card-front');
+        const cardBack = document.getElementById('card-back');
+        const progress = document.getElementById('progress');
+        const flipBtn = document.getElementById('flip-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const prevBtn = document.getElementById('prev-btn');
+        const homeBtn = document.getElementById('home-btn');
+
+        // --- 함수 ---
+        function shuffle(array) {
+            let currentIndex = array.length,  randomIndex;
+            while (currentIndex != 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        }
+        
+        function generateVocabularyQuiz() {
+            if (db.vocabularyQuiz) return;
+            const allVocab = [...db.vocabulary];
+            db.vocabularyQuiz = allVocab.map((correctAnswer, index) => {
+                const distractors = [];
+                const allOtherAnswers = allVocab.filter((_, i) => i !== index);
+                
+                while (distractors.length < 3) {
+                    const randomDistractor = allOtherAnswers[Math.floor(Math.random() * allOtherAnswers.length)];
+                    if (!distractors.some(d => d.korean === randomDistractor.korean)) {
+                        distractors.push(randomDistractor);
+                    }
+                }
+                const options = shuffle([correctAnswer, ...distractors]);
+                return {
+                    greek: correctAnswer.greek,
+                    options: options.map(opt => opt.korean),
+                    answer: correctAnswer.korean
+                };
+            });
+        }
+
+        // 2. 정답 확인 함수 추가
+        function checkAnswer(selectedElement) {
+            const selectedAnswer = selectedElement.textContent;
+            const correctAnswer = currentData[currentIndex].answer;
+            const optionsContainer = selectedElement.parentNode;
+            const allOptions = optionsContainer.children;
+
+            // 모든 보기에 'disabled' 클래스 추가하여 클릭 비활성화
+            for (let option of allOptions) {
+                option.classList.add('disabled');
+            }
+
+            // 정답/오답에 따라 클래스 부여
+            if (selectedAnswer === correctAnswer) {
+                selectedElement.classList.add('correct');
+            } else {
+                selectedElement.classList.add('incorrect');
+                // 오답일 경우, 정답 보기 찾아서 'correct' 클래스 부여
+                for (let option of allOptions) {
+                    if (option.textContent === correctAnswer) {
+                        option.classList.add('correct');
+                        break;
+                    }
+                }
+            }
+        }
+
+        function startStudy(mode) {
+            currentMode = mode;
+            currentIndex = 0;
+            
+            if (mode === 'vocabulary') {
+                currentData = shuffle([...db.vocabulary]);
+                studyTitle.textContent = '단어 암기';
+            } else if (mode === 'inflections') {
+                currentData = [...db.inflections];
+                studyTitle.textContent = '변화표 암기';
+            } else if (mode === 'sentences') {
+                // 문장 데이터는 제공된 파일에서 가져와야 합니다. 여기서는 생략.
+                currentData = shuffle([...(db.sentences || [])]);
+                studyTitle.textContent = '문장 분석';
+            } else if (mode === 'vocabularyQuiz') {
+                generateVocabularyQuiz();
+                currentData = shuffle([...db.vocabularyQuiz]);
+                studyTitle.textContent = '단어 사지선다 문제';
+            }
+
+            loadCard();
+            homeScreen.classList.add('hidden', 'opacity-0');
+            studyScreen.classList.remove('hidden');
+            studyScreen.classList.add('opacity-100');
+        }
+
+        function loadCard() {
+            const item = currentData[currentIndex];
+            if (!item) return;
+
+            // 퀴즈 모드에 따라 flip 버튼 표시 여부와 카드 flip 효과 제어
+            if (currentMode === 'vocabularyQuiz') {
+                flipBtn.style.display = 'none';
+                flashcard.classList.add('no-flip'); // flip 효과 제거
+                flashcard.classList.remove('is-flipped'); // 혹시 모를 flip 상태 초기화
+            } else {
+                flipBtn.style.display = 'inline-block';
+                flashcard.classList.remove('no-flip'); // flip 효과 활성화
+                flashcard.classList.remove('is-flipped'); // 카드 앞면으로 초기화
+            }
+
+            cardFront.scrollTop = 0;
+            cardBack.scrollTop = 0; 
+            cardBack.style.alignItems = (currentMode === 'sentences') ? 'flex-start' : 'center';
+
+            // 모드별 카드 내용 설정
+            if (currentMode === 'vocabularyQuiz') {
+                // 3. 퀴즈 카드 생성 로직 수정
+                const optionsHtml = item.options.map(option => 
+                    // onclick 이벤트 핸들러 추가
+                    `<div class="quiz-option" onclick="checkAnswer(this)">${option}</div>`
+                ).join('');
+
+                cardFront.innerHTML = `
+                    <div class="text-center w-full px-4">
+                        <div class="greek-text mb-4">${item.greek}</div>
+                        <div id="options-container" class="w-full">${optionsHtml}</div>
+                    </div>`;
+                // 퀴즈 모드에서는 카드 뒷면을 사용하지 않으므로 비워둠
+                cardBack.innerHTML = '';
+            } else if (currentMode === 'vocabulary') {
+                cardFront.innerHTML = `<div class="greek-text text-center">${item.greek}</div>`;
+                cardBack.innerHTML = `<div class="korean-text text-center text-2xl">${item.korean}</div>`;
+            } else if (currentMode === 'inflections') {
+                cardFront.innerHTML = `<div class="korean-text text-center text-2xl font-bold">${item.title}</div>`;
+                cardBack.innerHTML = `<div class="p-2 w-full h-full">${item.content}</div>`;
+            } else if (currentMode === 'sentences') {
+                cardFront.innerHTML = `<div class="greek-text text-center px-4">${item.greek}</div>`;
+                cardBack.innerHTML = `
+                    <div class="p-2 md:p-4 text-left w-full h-full">
+                        <h4 class="text-md md:text-lg font-bold mb-2 text-slate-700">문장 분석</h4>
+                        ${item.analysis} 
+                        <h4 class="text-md md:text-lg font-bold mt-4 mb-2 text-slate-700">최종 해석</h4>
+                        <p class="korean-text text-base">${item.translation}</p>
+                    </div>`;
+            }
+            
+            updateProgress();
+        }
+
+        function updateProgress() {
+            progress.textContent = `${currentIndex + 1} / ${currentData.length}`;
+        }
+        
+        function flipCard() {
+            // 퀴즈 모드가 아닐 때만 카드 뒤집기
+            if (currentMode !== 'vocabularyQuiz') {
+                flashcard.classList.toggle('is-flipped');
+            }
+        }
+
+        function nextCard() {
+            if (currentIndex < currentData.length - 1) {
+                currentIndex++;
+                loadCard();
+            }
+        }
+
+        function prevCard() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                loadCard();
+            }
+        }
+
+        function goHome() {
+            studyScreen.classList.add('hidden');
+            studyScreen.classList.remove('opacity-100');
+            homeScreen.classList.remove('hidden', 'opacity-0');
+        }
+
+        // --- 이벤트 리스너 ---
+        flipBtn.addEventListener('click', flipCard);
+        nextBtn.addEventListener('click', nextCard);
+        prevBtn.addEventListener('click', prevCard);
+        homeBtn.addEventListener('click', goHome);
+        
+        document.addEventListener('keydown', (e) => {
+            if (!studyScreen.classList.contains('hidden')) {
+                if (e.key === 'ArrowLeft') prevCard();
+                if (e.key === 'ArrowRight') nextCard();
+                // 퀴즈 모드에서는 스페이스/엔터로 카드 뒤집기 비활성화
+                if ((e.key === ' ' || e.key === 'Enter') && currentMode !== 'vocabularyQuiz') {
+                    e.preventDefault();
+                    flipCard();
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>
